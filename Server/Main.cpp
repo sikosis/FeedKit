@@ -1,9 +1,5 @@
 #include "FeedServer.h"
 
-#include <Message.h>
-#include <MessageRunner.h>
-#include <Messenger.h>
-
 #include <string.h>
 
 #if 0
@@ -91,20 +87,10 @@ class DelayMessage : public BMessage {
 #endif
 
 int main(int argc, char **argv) {
-	FeedServer server;
-	BMessageRunner *quitRunner = NULL;
-
-	if (argc == 2 && strcmp(argv[1], "--smoke-test") == 0) {
-		BMessage quit(B_QUIT_REQUESTED);
-		quitRunner = new BMessageRunner(BMessenger(&server), &quit, 3000000, 1);
-		if (quitRunner->InitCheck() != B_OK) {
-			delete quitRunner;
-			return 1;
-		}
-	}
+	bool smokeTest = argc == 2 && strcmp(argv[1], "--smoke-test") == 0;
+	FeedServer server(smokeTest);
 
 	server.Run();
-	delete quitRunner;
 	
 	return 0;
 	

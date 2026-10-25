@@ -105,8 +105,9 @@ void PrintFeed(Feed *feed) {
 };
 #endif
 
-FeedServer::FeedServer(void)
+FeedServer::FeedServer(bool smokeTest)
 	: BApplication(ServerSignature),
+		 fSmokeTest(smokeTest),
 	 fFeedQuery(NULL),
 	 fEnclosureQuery(NULL),
 	 fSettings(NULL),
@@ -292,16 +293,27 @@ void FeedServer::ReadyToRun(void) {
 	};
 
 	StartAutoStartClients();
+
+	if (fSmokeTest) {
+		fprintf(stderr, "FeedServer smoke test: ReadyToRun complete\n");
+		PostMessage(B_QUIT_REQUESTED);
+	}
 };
 
 //#pragma mark BLooper Hooks
 
 bool FeedServer::QuitRequested(void) {
+	if (fSmokeTest)
+		fprintf(stderr, "FeedServer smoke test: clean shutdown requested\n");
+
 	StopAutoStartClients();
 
 	BMessenger(fFeedDaemon).SendMessage(B_QUIT_REQUESTED);
 
 	curl_global_cleanup();
+	if (fSmokeTest)
+		fprintf(stderr, "FeedServer smoke test: QuitRequested complete\n");
+
 	return BApplication::QuitRequested();
 };
 

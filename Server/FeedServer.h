@@ -47,7 +47,7 @@ class FeedServer : public BApplication, public ObjectSource {
 
 
 	public:
-									FeedServer(void);
+									FeedServer(bool smokeTest = false);
 									~FeedServer(void);
 
 		// BApplication Hooks					
@@ -67,6 +67,8 @@ class FeedServer : public BApplication, public ObjectSource {
 		void						UpdateEnclosureProgress(FileRequest *request,
 										FeedKit::Enclosure *enc, double downloaded);
 	private:
+			bool						fSmokeTest;
+
 		void						LaunchFeed(entry_ref ref);
 		status_t					SyndicateURL(const char *url, const char *name = "");
 		FeedKit::DownloadProgress	*ProgressFromRequest(FileRequest *request);

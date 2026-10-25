@@ -67,8 +67,10 @@ grep -F 'Loading "Atom"... Done' "$log" >/dev/null 2>&1 \
 	|| fail "Atom parser did not load"
 grep -F 'Loading "RSS"... Done' "$log" >/dev/null 2>&1 \
 	|| fail "RSS parser did not load"
-grep -F 'FeedServer::ReadyToRun()' "$log" >/dev/null 2>&1 \
+grep -F 'FeedServer smoke test: ReadyToRun complete' "$log" >/dev/null 2>&1 \
 	|| fail "feed_server did not reach ReadyToRun"
+grep -F 'FeedServer smoke test: QuitRequested complete' "$log" >/dev/null 2>&1 \
+	|| fail "feed_server did not complete its clean shutdown path"
 
 trap - EXIT HUP INT TERM
 
