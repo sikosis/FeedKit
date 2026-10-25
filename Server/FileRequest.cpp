@@ -188,11 +188,12 @@ void FileRequest::Init(void) {
 	curl_easy_setopt(fCurl, CURLOPT_FOLLOWLOCATION, true);
 	curl_easy_setopt(fCurl, CURLOPT_MAXREDIRS, 10);
 	curl_easy_setopt(fCurl, CURLOPT_NOPROGRESS, false);
-	curl_easy_setopt(fCurl, CURLOPT_PROGRESSFUNCTION, Progress);
-	curl_easy_setopt(fCurl, CURLOPT_PROGRESSDATA, this); 
+	curl_easy_setopt(fCurl, CURLOPT_XFERINFOFUNCTION, Progress);
+	curl_easy_setopt(fCurl, CURLOPT_XFERINFODATA, this);
 	
 	if (fOffset > 0) {
-		curl_easy_setopt(fCurl, CURLOPT_RESUME_FROM, fOffset);
+		curl_easy_setopt(fCurl, CURLOPT_RESUME_FROM_LARGE,
+			static_cast<curl_off_t>(fOffset));
 		fprintf(stderr, "FileRequest::Init() Will attempt to restart download at %i byte(s)\n", fOffset);
 	}
 };
@@ -232,8 +233,11 @@ size_t FileRequest::ParseHeader(void *header, size_t size, size_t length, void *
 size_t FileRequest::SaveData(void *data, size_t size, size_t length, void *ptr) {
 	FileRequest *us = reinterpret_cast<FileRequest *>(ptr);
 	
-	size_t write = us->fFile.Write(data, size * length);
-	us->fSize += write;
+	ssize_t written = us->fFile.Write(data, size * length);
+	if (written < 0)
+		return 0;
+
+	us->fSize += static_cast<int32>(written);
 
 	if (us->fStartSent == false) {
 		for (handlerinfo_t::iterator rIt = us->fHandler.begin(); rIt != us->fHandler.end(); rIt++) {
@@ -243,16 +247,18 @@ size_t FileRequest::SaveData(void *data, size_t size, size_t length, void *ptr) 
 		us->fStartSent = true;
 	};
 
-	return write;
+	return static_cast<size_t>(written);
 };
 
-int FileRequest::Progress(void *data, double downTotal, double downNow, double upTotal, double upNow) {
+int FileRequest::Progress(void *data, curl_off_t downTotal, curl_off_t downNow,
+	curl_off_t upTotal, curl_off_t upNow) {
 	FileRequest *us = reinterpret_cast<FileRequest *>(data);
-	
-	fprintf(stderr, "FileRequest::Progress([%p], %.2f, %.2f, %.2f, %.2f) called\n", data, downTotal, downNow, upTotal, upNow);
+	(void)upTotal;
+	(void)upNow;
 
 	for (handlerinfo_t::iterator rIt = us->fHandler.begin(); rIt != us->fHandler.end(); rIt++) {
-		(*rIt)->DownloadProgress(us, downTotal, downNow);
+		(*rIt)->DownloadProgress(us, static_cast<double>(downTotal),
+			static_cast<double>(downNow));
 	};
 	
 

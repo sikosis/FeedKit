@@ -50,7 +50,9 @@ class FileRequest {
 		// LibCurl hooks				
 		static size_t		ParseHeader(void *header, size_t size, size_t length, void *ptr);
 		static size_t		SaveData(void *data, size_t size, size_t length, void *ptr);
-		static int			Progress(void *data, double downTotal, double doubleNow, double upTotal, double upNow);
+			static int			Progress(void *data, curl_off_t downTotal,
+									curl_off_t downNow, curl_off_t upTotal,
+									curl_off_t upNow);
 
 		BString				fURL;
 		entry_ref			fRef;

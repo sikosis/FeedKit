@@ -134,7 +134,7 @@ Feed *ParserManager::Parse(const char *url, const char *data, int32 length) {
 		};
 	};
 
-	if (feed == false) fprintf(stderr, "No parser handled \"%s\"\n", url);
+	if (feed == NULL) fprintf(stderr, "No parser handled \"%s\"\n", url);
 	
 	return feed;
 };
