@@ -28,6 +28,8 @@
 
 #include <unistd.h>
 
+#include <errno.h>
+
 #include <curl/curl.h>
 
 #include <libfeedkit/FeedKitConstants.h>
@@ -981,39 +983,37 @@ status_t FeedServer::DownloadEnclosure(FeedKit::Feed *feed, FeedKit::Channel *ch
 void FeedServer::CheckIndexes(void) {
 	BVolumeRoster roster;
 	BVolume volume;
-	int madeIndex = false;
-	
-	roster.Rewind();
+	status_t status = roster.GetBootVolume(&volume);
+	if (status != B_OK || volume.InitCheck() != B_OK) {
+		fprintf(stderr, "FeedServer::CheckIndexes(): Unable to open the boot volume: %s\n",
+			strerror(status));
+		return;
+	}
 
-	while (roster.GetNextVolume(&volume) == B_NO_ERROR) {
-		char volName[B_OS_NAME_LENGTH];
-		volume.GetName(volName);
+	char volumeName[B_OS_NAME_LENGTH];
+	volume.GetName(volumeName);
 
-		if ((volume.KnowsAttr()) && (volume.KnowsQuery()) && (volume.KnowsMime())) {
-			DIR *indexes;
-			struct dirent *ent;
-						
-			indexes = fs_open_index_dir(volume.Device());
-			if (indexes == NULL) {
-				fprintf(stderr, "FeedServer::CheckIndexes(): Unable to open indexes on %s\n", volName);
-				continue;
-			};
+	if (volume.IsReadOnly() || !volume.KnowsAttr() || !volume.KnowsQuery()
+		|| !volume.KnowsMime()) {
+		fprintf(stderr, "FeedServer::CheckIndexes(): Boot volume %s does not support writable indexes\n",
+			volumeName);
+		return;
+	}
 
-			bool hasEnclosureUUIDIndex = false;
-		
-			while ((ent = fs_read_index_dir(indexes)) != NULL ) {
-				if (strcmp(ent->d_name, kAttrEnclosureUUID) == 0) hasEnclosureUUIDIndex = true;
-			}
-			
-			if (hasEnclosureUUIDIndex == false) {
-				int res = fs_create_index(volume.Device(), kAttrEnclosureUUID, B_STRING_TYPE, 0);
-				fprintf(stderr, "FeedServer::CheckIndexes(): Created index \"%s\" on %s (%i)\n", kAttrEnclosureUUID, volName, res);
-				madeIndex = true;
-			};
+	index_info info;
+	if (fs_stat_index(volume.Device(), kAttrEnclosureUUID, &info) == B_OK)
+		return;
 
-			fs_close_index_dir(indexes);
-		};
-	};
+	int result = fs_create_index(volume.Device(), kAttrEnclosureUUID,
+		B_STRING_TYPE, 0);
+	if (result != B_OK) {
+		fprintf(stderr, "FeedServer::CheckIndexes(): Unable to create index \"%s\" on %s: %s\n",
+			kAttrEnclosureUUID, volumeName, strerror(errno));
+		return;
+	}
+
+	fprintf(stderr, "FeedServer::CheckIndexes(): Created index \"%s\" on %s\n",
+		kAttrEnclosureUUID, volumeName);
 };
 
 void FeedServer::SaveFeeds(void) {
