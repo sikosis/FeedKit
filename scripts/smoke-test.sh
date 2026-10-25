@@ -8,6 +8,7 @@ atom="$root_dir/build/Parsers/Atom"
 rss="$root_dir/build/Parsers/RSS"
 log="$root_dir/build/smoke-test.log"
 server_pid=
+hey_pid=
 
 fail()
 {
@@ -21,6 +22,11 @@ fail()
 
 cleanup()
 {
+	if [ -n "$hey_pid" ] && kill -0 "$hey_pid" 2>/dev/null; then
+		kill "$hey_pid" 2>/dev/null || true
+		wait "$hey_pid" 2>/dev/null || true
+	fi
+
 	if [ -n "$server_pid" ] && kill -0 "$server_pid" 2>/dev/null; then
 		kill "$server_pid" 2>/dev/null || true
 		wait "$server_pid" 2>/dev/null || true
@@ -43,8 +49,10 @@ LIBRARY_PATH="$root_dir/build${LIBRARY_PATH:+:$LIBRARY_PATH}"
 export LIBRARY_PATH
 
 : > "$log"
+echo "Starting feed_server (log: $log)..."
 "$server" > "$log" 2>&1 &
 server_pid=$!
+echo "Waiting up to 10 seconds for Atom and RSS parser add-ons..."
 
 attempt=0
 while [ "$attempt" -lt 10 ]; do
@@ -68,9 +76,9 @@ grep -F 'Loading "Atom"... Done' "$log" >/dev/null 2>&1 \
 grep -F 'Loading "RSS"... Done' "$log" >/dev/null 2>&1 \
 	|| fail "RSS parser did not load"
 
-if ! hey "$server_pid" quit >/dev/null 2>&1; then
-	fail "could not request a clean server shutdown"
-fi
+echo "Parser add-ons loaded. Requesting a clean shutdown..."
+hey "$server_pid" quit >/dev/null 2>&1 &
+hey_pid=$!
 
 attempt=0
 while kill -0 "$server_pid" 2>/dev/null && [ "$attempt" -lt 10 ]; do
@@ -79,8 +87,14 @@ while kill -0 "$server_pid" 2>/dev/null && [ "$attempt" -lt 10 ]; do
 done
 
 if kill -0 "$server_pid" 2>/dev/null; then
-	fail "feed_server did not exit after the quit request"
+	fail "feed_server did not exit within 10 seconds of the quit request"
 fi
+
+if kill -0 "$hey_pid" 2>/dev/null; then
+	kill "$hey_pid" 2>/dev/null || true
+fi
+wait "$hey_pid" 2>/dev/null || true
+hey_pid=
 
 if ! wait "$server_pid"; then
 	server_pid=
