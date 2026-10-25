@@ -60,7 +60,9 @@ ifeq ($(LIBFEEDKIT_HAVE_PCRE), )
 
 .PHONY: default
 default:
-	@echo "libfeedkit requires libpcre_devel. Install it with: pkgman install libpcre_devel" >&2
+	@echo "libfeedkit requires PCRE 8 development headers for the active architecture." >&2
+	@echo "Install libpcre_devel (or libpcre_x86_devel for an x86 secondary build)." >&2
+	@echo "Available packages: pkgman search libpcre" >&2
 	@exit 1
 
 else

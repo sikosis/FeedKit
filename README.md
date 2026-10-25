@@ -101,6 +101,10 @@ install it with:
 pkgman install libpcre_devel
 ```
 
+On an x86_gcc2 hybrid system building for the modern secondary architecture,
+use `libpcre_x86_devel` and run the build under the `x86` architecture. Use
+`pkgman search libpcre` to see the packages available for the current system.
+
 The default `make` target builds the core restoration scope. Optional clients
 and the Preflet can be attempted separately with `make optional` while their
 ports remain incomplete.
