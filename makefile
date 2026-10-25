@@ -33,9 +33,9 @@ endif
 
 FEEDKIT_HEADERS=$(addprefix /boot/home/config/include/, $(wildcard libfeedkit/*.h))
 
-.PHONY: default clean smoke optional install dist common
+.PHONY: default clean test smoke optional install dist common
 
-default .DEFAULT :
+default:
 	$(MAKE) -C libfeedkit -f makefile $@ || exit 1;
 	ln -sf "$(BUILD)/libfeedkit.so" "$(COMMON_LIB)"
 
@@ -50,6 +50,8 @@ optional:
 
 smoke: default
 	./scripts/smoke-test.sh
+
+test: smoke
 
 clean:
 	$(MAKE) -C libfeedkit -f makefile clean

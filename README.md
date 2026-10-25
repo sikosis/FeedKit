@@ -103,11 +103,14 @@ architecture are not yet validated.
 
 On Haiku, the smoke target builds the core, starts `feed_server`, verifies that
 the RSS and Atom add-ons load, confirms that the server remains alive, and
-requests a clean shutdown:
+exercises the server's clean shutdown path:
 
 ```sh
 make smoke
 ```
+
+`make test` currently runs the same native smoke validation. It will also run
+the automated unit suite once that suite has been restored for beta6.
 
 The captured server output is written to `build/smoke-test.log` when a check
 fails.

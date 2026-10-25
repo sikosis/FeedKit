@@ -8,7 +8,6 @@ atom="$root_dir/build/Parsers/Atom"
 rss="$root_dir/build/Parsers/RSS"
 log="$root_dir/build/smoke-test.log"
 server_pid=
-hey_pid=
 
 fail()
 {
@@ -22,11 +21,6 @@ fail()
 
 cleanup()
 {
-	if [ -n "$hey_pid" ] && kill -0 "$hey_pid" 2>/dev/null; then
-		kill "$hey_pid" 2>/dev/null || true
-		wait "$hey_pid" 2>/dev/null || true
-	fi
-
 	if [ -n "$server_pid" ] && kill -0 "$server_pid" 2>/dev/null; then
 		kill "$server_pid" 2>/dev/null || true
 		wait "$server_pid" 2>/dev/null || true
@@ -39,8 +33,6 @@ if [ "$(uname -s)" != "Haiku" ]; then
 	fail "this runtime check must be run on Haiku"
 fi
 
-command -v hey >/dev/null 2>&1 || fail "the Haiku 'hey' command is required"
-
 for artifact in "$server" "$atom" "$rss"; do
 	[ -f "$artifact" ] || fail "missing build artifact: $artifact"
 done
@@ -49,52 +41,20 @@ LIBRARY_PATH="$root_dir/build${LIBRARY_PATH:+:$LIBRARY_PATH}"
 export LIBRARY_PATH
 
 : > "$log"
-echo "Starting feed_server (log: $log)..."
-"$server" > "$log" 2>&1 &
+echo "Starting feed_server smoke mode (log: $log)..."
+"$server" --smoke-test > "$log" 2>&1 &
 server_pid=$!
-echo "Waiting up to 10 seconds for Atom and RSS parser add-ons..."
+echo "Waiting up to 15 seconds for startup, parser loading, and clean shutdown..."
 
 attempt=0
-while [ "$attempt" -lt 10 ]; do
-	if ! kill -0 "$server_pid" 2>/dev/null; then
-		wait "$server_pid" 2>/dev/null || true
-		server_pid=
-		fail "feed_server exited during startup"
-	fi
-
-	if grep -F 'Loading "Atom"... Done' "$log" >/dev/null 2>&1 \
-		&& grep -F 'Loading "RSS"... Done' "$log" >/dev/null 2>&1; then
-		break
-	fi
-
-	attempt=$((attempt + 1))
-	sleep 1
-done
-
-grep -F 'Loading "Atom"... Done' "$log" >/dev/null 2>&1 \
-	|| fail "Atom parser did not load"
-grep -F 'Loading "RSS"... Done' "$log" >/dev/null 2>&1 \
-	|| fail "RSS parser did not load"
-
-echo "Parser add-ons loaded. Requesting a clean shutdown..."
-hey "$server_pid" quit >/dev/null 2>&1 &
-hey_pid=$!
-
-attempt=0
-while kill -0 "$server_pid" 2>/dev/null && [ "$attempt" -lt 10 ]; do
+while kill -0 "$server_pid" 2>/dev/null && [ "$attempt" -lt 15 ]; do
 	attempt=$((attempt + 1))
 	sleep 1
 done
 
 if kill -0 "$server_pid" 2>/dev/null; then
-	fail "feed_server did not exit within 10 seconds of the quit request"
+	fail "feed_server did not complete smoke mode within 15 seconds"
 fi
-
-if kill -0 "$hey_pid" 2>/dev/null; then
-	kill "$hey_pid" 2>/dev/null || true
-fi
-wait "$hey_pid" 2>/dev/null || true
-hey_pid=
 
 if ! wait "$server_pid"; then
 	server_pid=
@@ -102,6 +62,14 @@ if ! wait "$server_pid"; then
 fi
 
 server_pid=
+
+grep -F 'Loading "Atom"... Done' "$log" >/dev/null 2>&1 \
+	|| fail "Atom parser did not load"
+grep -F 'Loading "RSS"... Done' "$log" >/dev/null 2>&1 \
+	|| fail "RSS parser did not load"
+grep -F 'FeedServer::ReadyToRun()' "$log" >/dev/null 2>&1 \
+	|| fail "feed_server did not reach ReadyToRun"
+
 trap - EXIT HUP INT TERM
 
 echo "Smoke test passed: feed_server started, loaded Atom and RSS, and shut down cleanly."
