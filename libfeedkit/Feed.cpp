@@ -216,12 +216,12 @@ Channel *Feed::EquivalentChannel(Channel *channel) const {
 const char *Feed::UUID(void) const {
 	if (fUUID.Length() == 0) {
 		uchar hash[SHA_DIGEST_LENGTH];
-		char buffer[2];
+		char buffer[3];
 
 		SHA1((const uchar *)fURL.String(), fURL.Length(), hash);
 
 		for (int32 i = 0; i < SHA_DIGEST_LENGTH; i++) {
-			sprintf(buffer, "%02x", hash[i]);
+			snprintf(buffer, sizeof(buffer), "%02x", hash[i]);
 			
 			fUUID << buffer;
 		};
