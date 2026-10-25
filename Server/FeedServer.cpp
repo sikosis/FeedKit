@@ -1270,9 +1270,9 @@ status_t FeedServer::HandleFeedDownloadStart(BMessage *msg) {
 
 	urlfeed_t::iterator uIt = fURLFeeds.find(request->URL());
 	if (uIt == fURLFeeds.end()) {
-		// XXX
-		// Possibly not an error - if its a new Feed
-		return B_ERROR;
+		// Initial registration has no Feed object to attach to the progress
+		// notification yet. The download itself still started successfully.
+		return B_OK;
 	};
 
 	DownloadProgress *progress = ProgressFromRequest(request);		

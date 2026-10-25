@@ -501,7 +501,7 @@ void Channel::PICSRating(const char *pics) {
 
 void Channel::Image(Enclosure *image) {
 	fImage = image;
-	fImageUUID = image->UUID();
+	fImageUUID = image == NULL ? "" : image->UUID();
 };
 
 void Channel::AddItem(Item *item) {

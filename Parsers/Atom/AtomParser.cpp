@@ -275,7 +275,7 @@ status_t AtomParser::ParseAtomFeed(Channel *channel, xmlNode *parent, bool conve
 	
 	if (icon) {
 		channel->Image(icon);
-	} else {
+	} else if (logo) {
 		channel->Image(logo);
 	};
 	
