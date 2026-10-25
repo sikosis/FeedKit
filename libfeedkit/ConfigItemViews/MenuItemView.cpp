@@ -34,12 +34,14 @@ MenuItemView::~MenuItemView(void) {
 //#pragma mark ConfigItemView hooks
 
 void MenuItemView::Revert(void) {
-	while (fMenu->CountItems() > 0) delete fMenu->RemoveItem(0L);		
+	while (fMenu->CountItems() > 0)
+		delete fMenu->RemoveItem(static_cast<int32>(0));
 	BuildMenu(false);
 };
 
 void MenuItemView::Defaults(void) {
-	while (fMenu->CountItems() > 0) delete fMenu->RemoveItem(0L);
+	while (fMenu->CountItems() > 0)
+		delete fMenu->RemoveItem(static_cast<int32>(0));
 	BuildMenu(true);
 };
 
