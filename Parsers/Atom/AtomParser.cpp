@@ -147,7 +147,7 @@ Feed *AtomParser::ParseFeed(const char *url, const char *data, int32 length) {
 				while (node != NULL) {
 					if (node->type == XML_ELEMENT_NODE) {
 						if (xmlStrcmp(node->name, (const xmlChar *)"feed") == 0) {
-							if (feed == false) feed = new Feed(url);
+							if (feed == NULL) feed = new Feed(url);
 						
 							Channel *channel = new Channel();
 							feed->AddChannel(channel);

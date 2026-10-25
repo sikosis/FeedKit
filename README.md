@@ -37,7 +37,7 @@ findings, constraints, and acceptance criteria.
 | Original FeedKit baseline | Historical | Existing library, server, parsers, clients, preflet, and tests retained as the basis of this fork. |
 | R1/beta6 compatibility audit | Complete — 25 October 2026 | Audited the active Jam build, legacy makefiles, core library, server, parsers, clients, preflet, and tests against the beta6 SDK and package ecosystem. |
 | Restoration design | Complete — 25 October 2026 | Documented build blockers, correctness defects, dependency/API changes, compatibility constraints, staged goals, and release acceptance criteria in `DESIGN.md`. |
-| Native beta6 baseline | In progress — 25 October 2026 | `libfeedkit.so` now compiles and links on R1/beta6, and every `feed_server` source compiles. Native build iterations repaired malformed makefiles, obsolete dependency/compiler flags, x86_64 type assumptions, deprecated curl handling, and repository-local link paths. Server linking and RSS/Atom parsers remain under validation. |
+| Native beta6 baseline | In progress — 25 October 2026 | `libfeedkit.so` and `feed_server` now compile and link on R1/beta6. Native build iterations repaired malformed makefiles, obsolete dependency/compiler flags, x86_64 type assumptions, deprecated curl handling, and repository-local link paths. RSS/Atom parser validation is currently waiting on `libxml2_devel`. |
 | Core safety and compatibility | Planned | Fix undefined behaviour and ownership defects while preserving UUIDs, serialized data, public APIs, application signatures, and stored user data. |
 | Network and parser modernization | Planned | Update curl, OpenSSL, temporary-file handling, parser discovery, feed fixtures, and server integration tests. |
 | Package and lifecycle integration | Planned | Add package-aware paths and an HPKG workflow, then verify installation, discovery, startup, persistence, and removal. |
@@ -99,6 +99,12 @@ install it with:
 
 ```sh
 pkgman install libpcre_devel
+```
+
+The RSS and Atom parser add-ons also require the libxml2 development package:
+
+```sh
+pkgman install libxml2_devel
 ```
 
 On an x86_gcc2 hybrid system building for the modern secondary architecture,
