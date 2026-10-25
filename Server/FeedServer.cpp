@@ -107,11 +107,15 @@ void PrintFeed(Feed *feed) {
 
 FeedServer::FeedServer(bool smokeTest)
 	: BApplication(ServerSignature),
-		 fSmokeTest(smokeTest),
+	 fSmokeTest(smokeTest),
 	 fFeedQuery(NULL),
 	 fEnclosureQuery(NULL),
+	 fParserManager(NULL),
+	 fFeedDaemon(NULL),
 	 fSettings(NULL),
 	 fFeeds(NULL),
+	 fDownloadStatusRunner(NULL),
+	 fFlattenFeedRunner(NULL),
 	 fVolRoster(NULL) {
 
 	AddCommonFilter(new ObjectUpdateFilter(this));
@@ -169,8 +173,6 @@ FeedServer::FeedServer(bool smokeTest)
 	
 	fFeedDaemon = new FileDaemon(kMaxDownloadDaemonThreads);
 	fParserManager = new ParserManager();
-	
-	fFlattenFeedRunner = new BMessageRunner(BMessenger(this), new BMessage(kMsgFlattenFeeds), kFlattenFeedInterval);
 };
 
 FeedServer::~FeedServer(void) {
@@ -185,6 +187,7 @@ FeedServer::~FeedServer(void) {
 	
 	delete fParserManager;
 	delete fDownloadStatusRunner;
+	delete fFlattenFeedRunner;
 };
 
 //#pragma mark BApplication Hooks
@@ -207,6 +210,8 @@ void FeedServer::MessageReceived(BMessage *msg) {
 
 void FeedServer::ReadyToRun(void) {
 	printf("FeedServer::ReadyToRun()\n");
+	fFlattenFeedRunner = new BMessageRunner(BMessenger(this),
+		new BMessage(kMsgFlattenFeeds), kFlattenFeedInterval);
 
 	CheckIndexes();
 
