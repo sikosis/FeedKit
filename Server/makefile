@@ -8,32 +8,45 @@
 
 FEEDSERVER_HAVE_CURL=
 
+SYSTEM_DEVELOP_DIR:=$(shell finddir B_SYSTEM_DEVELOP_DIRECTORY 2>/dev/null)
+USER_NONPACKAGED_DEVELOP_DIR:=$(shell finddir B_USER_NONPACKAGED_DEVELOP_DIRECTORY 2>/dev/null)
+
 ifneq ($(wildcard /boot/develop/headers/curl/curl.h), )
   FEEDSERVER_HAVE_CURL:=1
 endif
 ifneq ($(wildcard /boot/home/config/include/curl/curl.h), )
   FEEDSERVER_HAVE_CURL:=1
 endif
+ifneq ($(wildcard $(SYSTEM_DEVELOP_DIR)/headers/curl/curl.h), )
+  FEEDSERVER_HAVE_CURL:=1
+endif
+ifneq ($(wildcard $(USER_NONPACKAGED_DEVELOP_DIR)/headers/curl/curl.h), )
+  FEEDSERVER_HAVE_CURL:=1
+endif
+ifneq ($(shell pkg-config --exists libcurl 2>/dev/null && echo yes), )
+  FEEDSERVER_HAVE_CURL:=1
+endif
 
 ifeq ($(FEEDSERVER_HAVE_CURL), )
 
-	.PHONY default
-	default:
-		@echo The Feed Server requires CURL to be installed. Skipping Feed Server.
+.PHONY: default
+default:
+	@echo "feed_server requires the curl development package." >&2
+	@exit 1
 
 else
 	
 	# specify the name of the binary
-	NAME= feed_server
-	SVG_ICON=
-	TOPDIR=..
-	TARGET_DIR=$(TOPDIR)/build
+NAME= feed_server
+SVG_ICON=
+TOPDIR=..
+TARGET_DIR=$(TOPDIR)/build
 	# specify the type of binary
 	#	APP:	Application
 	#	SHARED:	Shared library or add-on
 	#	STATIC:	Static library archive
 	#	DRIVER: Kernel Driver
-	TYPE= APP
+TYPE= APP
 	
 	#	add support for new Pe and Eddie features
 	#	to fill in generic makefile
@@ -41,11 +54,11 @@ else
 	#%{
 	# @src->@ 
 	
-	ORIGIN := /Data/Code/FeedKit/Server/ 
+ORIGIN := /Data/Code/FeedKit/Server/
 
 # 		FeedServer.cpp \
 	
-	Source_src := \
+Source_src := \
 		Main.cpp \
 		EnclosureRequestHandler.cpp \
 		LocalEnclosureDownload.cpp \
@@ -57,17 +70,17 @@ else
 		$(TOPDIR)/Common/QueryLooper.cpp \
 	#
 	
-	Misc_src := \
+Misc_src := \
 		$(TOPDIR)/Common/SettingsFile.cpp \
 		$(TOPDIR)Common/IMKitUtilities.cpp \
 	#
 	
-	SRCS := \
+SRCS := \
 		$(Source_src) \
 		$(Misc_src) \
 	#
 	
-	RSRCS := \
+RSRCS := \
 		feed_server.rsrc \
 	#
 	
@@ -76,7 +89,7 @@ else
 	
 	#	end support for Pe and Eddie
 	
-	ORIGIN := $(shell pwd)
+ORIGIN := $(shell pwd)
 	
 	#	specify additional libraries to link against
 	#	there are two acceptable forms of library specifications
@@ -88,7 +101,7 @@ else
 	#		naming scheme you need to specify the path to the library
 	#		and it's name
 	#		library: my_lib.a entry: my_lib.a or path/my_lib.a
-	LIBS= be translation z stdc++.r4 feedkit curl socket bind
+LIBS= be translation z stdc++ feedkit curl tracker
 	
 	#	specify additional paths to directories following the standard
 	#	libXXX.so or libXXX.a naming scheme.  You can specify full paths
@@ -96,91 +109,91 @@ else
 	#	be recursive, so include all of the paths where libraries can
 	#	be found.  Directories where source files are found are
 	#	automatically included.
-	LIBPATHS= /boot/home/config/lib
+LIBPATHS= /boot/home/config/lib
 	
 	#	additional paths to look for system headers
 	#	thes use the form: #include <header>
 	#	source file directories are NOT auto-included here
-	SYSTEM_INCLUDE_PATHS = /boot/home/config/include
+SYSTEM_INCLUDE_PATHS = /boot/home/config/include
 	
 	#	additional paths to look for local headers
 	#	thes use the form: #include "header"
 	#	source file directories are automatically included
-	LOCAL_INCLUDE_PATHS = ../Common/ /boot/home/config/include/curl /boot/home/config/include/gc
+LOCAL_INCLUDE_PATHS = ../Common/ /boot/home/config/include/curl /boot/home/config/include/gc
 	
 	#	specify the level of optimization that you desire
 	#	NONE, SOME, FULL
-	OPTIMIZE= SOME
+OPTIMIZE= SOME
 	
 	#	specify any preprocessor symbols to be defined.  The symbols will not
 	#	have their values set automatically; you must supply the value (if any)
 	#	to use.  For example, setting DEFINES to "DEBUG=1" will cause the
 	#	compiler option "-DDEBUG=1" to be used.  Setting DEFINES to "DEBUG"
 	#	would pass "-DDEBUG" on the compiler's command line.
-	DEFINES=
+DEFINES=
 	
 	#	specify special warning levels
 	#	if unspecified default warnings will be used
 	#	NONE = supress all warnings
 	#	ALL = enable all warnings
-	WARNINGS = ALL 
+WARNINGS = ALL
 	
 	#	specify whether image symbols will be created
 	#	so that stack crawls in the debugger are meaningful
 	#	if TRUE symbols will be created
-	SYMBOLS = TRUE
+SYMBOLS = TRUE
 	
 	#	specify debug settings
 	#	if TRUE will allow application to be run from a source-level
 	#	debugger.  Note that this will disable all optimzation.
-	DEBUGGER =
+DEBUGGER =
 	
 	#	specify additional compiler flags for all files
-	COMPILER_FLAGS =
+COMPILER_FLAGS =
 	
 	#	specify additional linker flags
-	LINKER_FLAGS =
+LINKER_FLAGS =
 	
 	#	specify the version of this particular item
 	#	(for example, -app 3 4 0 d 0 -short 340 -long "340 "`echo -n -e '\302\251'`"1999 GNU GPL") 
 	#	This may also be specified in a resource.
-	APP_VERSION = 
+APP_VERSION =
 	
 	#	(for TYPE == DRIVER only) Specify desired location of driver in the /dev
 	#	hierarchy. Used by the driverinstall rule. E.g., DRIVER_PATH = video/usb will
 	#	instruct the driverinstall rule to place a symlink to your driver's binary in
 	#	~/add-ons/kernel/drivers/dev/video/usb, so that your driver will appear at
 	#	/dev/video/usb when loaded. Default is "misc".
-	DRIVER_PATH = 
+DRIVER_PATH =
 	
-	ifeq ($(CHECK_MEM), true)
-		COMPILER_FLAGS += -fcheck-memory-usage -D_NO_INLINE_ASM=1 -D_KERNEL_MODE=1
-		DEBUG_BUILD=true
-	endif
+ifeq ($(CHECK_MEM), true)
+COMPILER_FLAGS += -fcheck-memory-usage -D_NO_INLINE_ASM=1 -D_KERNEL_MODE=1
+DEBUG_BUILD=true
+endif
 	
 	#   Custom overrides that can be set from the command line.
-	ifeq ($(DEBUG_BUILD), true)
-		SYMBOLS := TRUE
-		DEBUGGER := TRUE
-		OPTIMIZE := NONE
-		COMPILER_FLAGS += -DDEBUG=1
+ifeq ($(DEBUG_BUILD), true)
+SYMBOLS := TRUE
+DEBUGGER := TRUE
+OPTIMIZE := NONE
+COMPILER_FLAGS += -DDEBUG=1
 		
-		ifeq ($(shell uname -r), 5.1)
-			COMPILER_FLAGS += -fno-debug-opt
-		endif
+ifeq ($(shell uname -r), 5.1)
+COMPILER_FLAGS += -fno-debug-opt
+endif
 	
-	endif
+endif
 	
 	#Detect Zeta
-	ifeq ($(wildcard /boot/develop/headers/be/locale/Formatter.h), )
+ifeq ($(wildcard /boot/develop/headers/be/locale/Formatter.h), )
 	# BeOS
-	else
+else
 	#Zeta
-	  LIBS += zeta tracker
-	endif
+LIBS += zeta tracker
+endif
 	
-	INSTALL_DIR= $(shell finddir B_COMMON_SERVERS_DIRECTORY)
+INSTALL_DIR= $(shell finddir B_COMMON_SERVERS_DIRECTORY)
 	
-	include $(TOPDIR)/makefile-engine.FeedKit
+include $(TOPDIR)/makefile-engine.FeedKit
 
 endif

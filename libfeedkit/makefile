@@ -43,12 +43,16 @@ endif
 ifneq ($(wildcard $(USER_NONPACKAGED_DEVELOP_DIR)/headers/pcre/pcre.h), )
   LIBFEEDKIT_HAVE_PCRE:=1
 endif
+ifneq ($(shell pkg-config --exists libpcre 2>/dev/null && echo yes), )
+  LIBFEEDKIT_HAVE_PCRE:=1
+endif
 
 ifeq ($(LIBFEEDKIT_HAVE_OPENSSL), )
 
 .PHONY: default
 default:
-	@echo libfeedkit requires OpenSSL to be installed. Skipping libfeedkit.
+	@echo "libfeedkit requires the OpenSSL development package." >&2
+	@exit 1
 
 else
 
@@ -56,7 +60,8 @@ ifeq ($(LIBFEEDKIT_HAVE_PCRE), )
 
 .PHONY: default
 default:
-	@echo libfeedkit requires Perl Compatible Regular Expressions to be installed. Skipping libfeedkit
+	@echo "libfeedkit requires libpcre_devel. Install it with: pkgman install libpcre_devel" >&2
+	@exit 1
 
 else
 	
@@ -134,7 +139,7 @@ ORIGIN := $(shell pwd)
 		#		naming scheme you need to specify the path to the library
 		#		and it's name
 		#		library: my_lib.a entry: my_lib.a or path/my_lib.a
-LIBS= be stdc++.r4 pcre crypto tracker
+LIBS= be stdc++ pcre crypto tracker
 		
 		#	specify additional paths to directories following the standard
 		#	libXXX.so or libXXX.a naming scheme.  You can specify full paths

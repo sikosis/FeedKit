@@ -28,7 +28,7 @@ using namespace FeedKit::Settings;
 
 class ViewInfo;
 
-typedef map<BString, ViewInfo *> pref_t;
+typedef std::map<BString, ViewInfo *> pref_t;
 
 class PWindow : public BWindow {
 	public:

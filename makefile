@@ -10,12 +10,15 @@ COMMON_SERVERS:=$(shell finddir B_COMMON_SERVERS_DIRECTORY)
 COMMON_ADDONS:=$(shell finddir B_COMMON_ADDONS_DIRECTORY)
 BUILD:=$(shell pwd)/build
 
-SUBDIRS = \
-	Preflet \
+CORE_SUBDIRS = \
 	Server \
-	Parsers \
-	Clients \
-	
+	Parsers
+
+OPTIONAL_SUBDIRS = \
+	Preflet \
+	Clients
+
+SUBDIRS = $(CORE_SUBDIRS)
 ifneq ($(wildcard /boot/develop/headers/cppunit/TestSuite.h), )
   HAVE_CPPUNIT:=1
 endif
@@ -30,18 +33,23 @@ endif
 
 FEEDKIT_HEADERS=$(addprefix /boot/home/config/include/, $(wildcard libfeedkit/*.h))
 
-.PHONY: default clean install dist common
+.PHONY: default clean optional install dist common
 
 default .DEFAULT :
 	$(MAKE) -C libfeedkit -f makefile $@ || exit 1;
 	ln -sf "$(BUILD)/libfeedkit.so" "$(COMMON_LIB)"
 
-	-@for f in $(SUBDIRS) ; do \
+	@for f in $(SUBDIRS) ; do \
 		$(MAKE) -C $$f -f makefile $@ || exit 1; \
 	done
 
+optional:
+	@for f in $(OPTIONAL_SUBDIRS) ; do \
+		$(MAKE) -C $$f -f makefile default || exit 1; \
+	done
+
 clean:
-	-@for f in $(SUBDIRS) ; do \
+	@for f in $(SUBDIRS) ; do \
 		$(MAKE) -C $$f -f makefile clean || exit 1; \
 	done
 

@@ -37,7 +37,7 @@ findings, constraints, and acceptance criteria.
 | Original FeedKit baseline | Historical | Existing library, server, parsers, clients, preflet, and tests retained as the basis of this fork. |
 | R1/beta6 compatibility audit | Complete — 25 October 2026 | Audited the active Jam build, legacy makefiles, core library, server, parsers, clients, preflet, and tests against the beta6 SDK and package ecosystem. |
 | Restoration design | Complete — 25 October 2026 | Documented build blockers, correctness defects, dependency/API changes, compatibility constraints, staged goals, and release acceptance criteria in `DESIGN.md`. |
-| Native beta6 baseline | In progress — 25 October 2026 | The first native `make` attempt exposed malformed fallback targets in `libfeedkit/makefile`. Parsing, modern dependency-directory probes, and x86_64 architecture selection have been repaired; the next native build will identify the next compiler or linker blocker. |
+| Native beta6 baseline | In progress — 25 October 2026 | Native build iterations exposed malformed fallback targets, obsolete dependency probes and include flags, incorrect x86_64 selection, ignored sub-build failures, and an optional Preflet compile defect. These are repaired; the default build now targets only the core library, server, and RSS/Atom parsers. |
 | Core safety and compatibility | Planned | Fix undefined behaviour and ownership defects while preserving UUIDs, serialized data, public APIs, application signatures, and stored user data. |
 | Network and parser modernization | Planned | Update curl, OpenSSL, temporary-file handling, parser discovery, feed fixtures, and server integration tests. |
 | Package and lifecycle integration | Planned | Add package-aware paths and an HPKG workflow, then verify installation, discovery, startup, persistence, and removal. |
@@ -93,4 +93,15 @@ Exact beta6 build, test, and packaging commands will be added after the first
 native build baseline is established. The existing build files contain known
 obsolete paths and defects, so they should not yet be treated as a supported
 installation workflow.
+
+The current native build requires the PCRE development package. On Haiku,
+install it with:
+
+```sh
+pkgman install libpcre_devel
+```
+
+The default `make` target builds the core restoration scope. Optional clients
+and the Preflet can be attempted separately with `make optional` while their
+ports remain incomplete.
 

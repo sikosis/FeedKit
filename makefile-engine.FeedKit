@@ -239,9 +239,8 @@ VPATH += $(addprefix :, $(subst  ,:, $(filter-out $($(subst, :, ,$(VPATH))), $(S
 
 #	SETTING: build the local and system include paths
 ifeq ($(CPU), x86)
-	LOC_INCLUDES = $(foreach path, $(SRC_PATHS) $(LOCAL_INCLUDE_PATHS), $(addprefix -I, $(path)))
-	SYS_INCLUDES += -I-
-	SYS_INCLUDES += $(foreach path, $(SYSTEM_INCLUDE_PATHS), $(addprefix -I, $(path)))
+		LOC_INCLUDES = $(foreach path, $(SRC_PATHS) $(LOCAL_INCLUDE_PATHS), -iquote $(path))
+		SYS_INCLUDES += $(foreach path, $(SYSTEM_INCLUDE_PATHS), -I$(path))
 else
 ifeq ($(CPU), ppc)
 	LOC_INCLUDES = $(foreach path, $(SRC_PATHS) $(LOCAL_INCLUDE_PATHS), $(addprefix -I, $(path)))
