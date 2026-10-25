@@ -89,7 +89,16 @@ class DelayMessage : public BMessage {
 
 int main(int argc, char **argv) {
 	bool smokeTest = argc == 2 && strcmp(argv[1], "--smoke-test") == 0;
-	FeedServer server(smokeTest);
+	bool integrationTest = argc == 4
+		&& strcmp(argv[1], "--integration-test") == 0;
+	if (argc > 1 && !smokeTest && !integrationTest) {
+		fprintf(stderr, "Usage: %s [--smoke-test | --integration-test RSS_URL ATOM_URL]\n",
+			argv[0]);
+		return 1;
+	}
+
+	FeedServer server(smokeTest, integrationTest ? argv[2] : NULL,
+		integrationTest ? argv[3] : NULL);
 	status_t status = server.InitCheck();
 	if (status != B_OK) {
 		fprintf(stderr, "feed_server initialization failed: %s\n",
@@ -101,7 +110,7 @@ int main(int argc, char **argv) {
 
 	server.Run();
 	
-	return 0;
+	return integrationTest && !server.IntegrationTestPassed() ? 1 : 0;
 	
 #if 0
 //	ObjectUpdateFilter filter(&server);

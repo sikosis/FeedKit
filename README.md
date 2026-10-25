@@ -9,8 +9,9 @@ architecture on x86_gcc2 hybrid installations.
 > **Current status:** compatibility audit and restoration planning are
 > complete. The default core target now builds successfully on R1/beta6
 > x86_64, and the native startup/parser-loading/shutdown smoke test passes.
-> Feed registration, refresh integration, and automated unit tests are not yet
-> validated.
+> A bounded local RSS/Atom registration-and-refresh integration test is now
+> available and awaiting native beta6 validation. Automated unit tests are not
+> yet restored.
 
 See [DESIGN.md](DESIGN.md) for the full compatibility audit, technical
 findings, constraints, and acceptance criteria.
@@ -41,7 +42,7 @@ findings, constraints, and acceptance criteria.
 | Restoration design | Complete — 25 October 2026 | Documented build blockers, correctness defects, dependency/API changes, compatibility constraints, staged goals, and release acceptance criteria in `DESIGN.md`. |
 | Native beta6 baseline | Complete — 25 October 2026 | User-confirmed successful default build of `libfeedkit.so`, `feed_server`, and the RSS/Atom parser add-ons on R1/beta6 x86_64. Build repairs covered malformed makefiles, dependencies, compiler/linker flags, fixed-width types, protected server access, modern curl callbacks, and repository-local linking. |
 | Core safety and compatibility | In progress — 25 October 2026 | Initial 64-bit serialization and ownership-adjacent fixes landed during build restoration. UUID fixtures, round-trip tests, memory-safety checks, and the remaining correctness audit are next. |
-| Network and parser modernization | In progress — 25 October 2026 | Native smoke validation confirms `feed_server` starts, discovers and loads the adjacent Atom and RSS add-ons, reaches `ReadyToRun`, and shuts down cleanly. Feed fixtures, registration/refresh integration, secure temporary files, and broader network failure tests remain. |
+| Network and parser modernization | In progress — 25 October 2026 | Native smoke validation confirms `feed_server` starts, discovers and loads the adjacent Atom and RSS add-ons, reaches `ReadyToRun`, and shuts down cleanly. A repository-owned test now drives local RSS and Atom fixtures through download, parser selection, registration, merge, forced refresh, and clean shutdown; native beta6 confirmation and broader network failure tests remain. |
 | Package and lifecycle integration | Planned | Add package-aware paths and an HPKG workflow, then verify installation, discovery, startup, persistence, and removal. |
 | Optional client ports | Planned | Port clients independently after the core is stable; replace obsolete NetPositive and InfoPopper integrations where necessary. |
 | Beta6 release validation | Planned | Pass builds, tests, integration checks, and HPKG installation on x86_64 and the modern secondary `x86` architecture. |
@@ -112,11 +113,20 @@ exercises the server's clean shutdown path:
 make smoke
 ```
 
-`make test` currently runs the same native smoke validation. It will also run
-the automated unit suite once that suite has been restored for beta6.
+The next integration check exercises local RSS and Atom fixtures through the
+real downloader and parser add-ons, validates both initial registration and a
+forced refresh, and avoids writing fixture subscriptions into the user's feed
+store:
 
-The captured server output is written to `build/smoke-test.log` when a check
-fails.
+```sh
+make integration
+```
+
+`make test` runs both `make smoke` and `make integration`. It will also run the
+automated unit suite once that suite has been restored for beta6.
+
+Captured server output is written to `build/smoke-test.log` or
+`build/integration-test.log` when a check fails.
 
 The current native build requires the PCRE development package. On Haiku,
 install it with:

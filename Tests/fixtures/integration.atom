@@ -1,0 +1,17 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<feed xmlns="http://www.w3.org/2005/Atom">
+  <title>FeedKit Atom integration fixture</title>
+  <subtitle>Local Atom fixture for FeedKit integration testing.</subtitle>
+  <id>https://example.invalid/feedkit/atom</id>
+  <updated>2026-10-25T00:00:00Z</updated>
+  <author>
+    <name>FeedKit</name>
+  </author>
+  <entry>
+    <title>Atom fixture item</title>
+    <id>urn:feedkit:atom-integration-item</id>
+    <updated>2026-10-25T00:00:00Z</updated>
+    <link rel="alternate" href="https://example.invalid/feedkit/atom/item" title="Atom fixture item"/>
+    <summary type="text">Atom fixture content.</summary>
+  </entry>
+</feed>

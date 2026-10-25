@@ -33,7 +33,7 @@ endif
 
 FEEDKIT_HEADERS=$(addprefix /boot/home/config/include/, $(wildcard libfeedkit/*.h))
 
-.PHONY: default clean test smoke optional install dist common
+.PHONY: default clean test smoke integration optional install dist common
 
 default:
 	$(MAKE) -C libfeedkit -f makefile $@ || exit 1;
@@ -51,7 +51,10 @@ optional:
 smoke: default
 	./scripts/smoke-test.sh
 
-test: smoke
+integration: default
+	./scripts/integration-test.sh
+
+test: smoke integration
 
 clean:
 	$(MAKE) -C libfeedkit -f makefile clean

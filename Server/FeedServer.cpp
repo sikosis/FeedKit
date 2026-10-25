@@ -30,6 +30,7 @@
 #include <unistd.h>
 
 #include <errno.h>
+#include <string.h>
 
 #include <curl/curl.h>
 
@@ -79,6 +80,8 @@ const int32 kMsgChannelIconDownloadStart = 'fids';
 const int32 kMsgChannelIconDownloadFinish = 'fidf';
 const int32 kMsgChannelIconDownloadError = 'fide';
 const int32 kMsgFlattenFeeds = 'flfe';
+const int32 kMsgIntegrationTimeout = 'fitt';
+const bigtime_t kIntegrationTimeout = 15 * kSecond;
 
 //#pragma mark Constructor
 
@@ -108,10 +111,18 @@ void PrintFeed(Feed *feed) {
 };
 #endif
 
-FeedServer::FeedServer(bool smokeTest)
-	: BApplication(smokeTest
-		? "application/x-vnd.beclan.feed_server.smoke" : ServerSignature),
+FeedServer::FeedServer(bool smokeTest, const char *integrationRSSURL,
+	const char *integrationAtomURL)
+	: BApplication(smokeTest ? "application/x-vnd.beclan.feed_server.smoke"
+		: integrationRSSURL != NULL
+			? "application/x-vnd.beclan.feed_server.integration" : ServerSignature),
 	 fSmokeTest(smokeTest),
+	 fIntegrationTest(integrationRSSURL != NULL && integrationAtomURL != NULL),
+	 fIntegrationTestFailed(false),
+	 fIntegrationTestComplete(false),
+	 fIntegrationRSSURL(integrationRSSURL == NULL ? "" : integrationRSSURL),
+	 fIntegrationAtomURL(integrationAtomURL == NULL ? "" : integrationAtomURL),
+	 fIntegrationTimeoutRunner(NULL),
 	 fFeedQuery(NULL),
 	 fEnclosureQuery(NULL),
 	 fParserManager(NULL),
@@ -151,6 +162,7 @@ FeedServer::FeedServer(bool smokeTest)
 	fHandler[kMsgChannelIconDownloadError] = &FeedServer::HandleChannelIconDownloadError;
 	fHandler[FeedKit::Private::ToServer::ChangeFeedSubscription] = &FeedServer::HandleChangeFeedSubscription;
 	fHandler[kMsgFlattenFeeds] = &FeedServer::HandleFlattenFeeds;
+	fHandler[kMsgIntegrationTimeout] = &FeedServer::HandleIntegrationTimeout;
 
 	fRefFeedUUID.clear();
 	fRefFeeds.clear();
@@ -161,26 +173,31 @@ FeedServer::FeedServer(bool smokeTest)
 	fChannelUUID.clear();
 	fItemUUID.clear();
 
-	fSettings = new SettingsFile(kSettingsFile, kSettingsDir);
-	if (fSettings->InitCheck() != B_OK) {
-		fprintf(stderr, "FeedKit: Error loading preferences");
-	};
-	
-	fSettings->Load();
-	
-	if (fSettings->FindInt32("refresh", &fRefresh) != B_OK) {
+	if (fIntegrationTest) {
 		fRefresh = kDefaultRefresh;
-		fSettings->AddInt32("refresh", fRefresh);
-		
-		fSettings->Save();
-	};
+	} else {
+		fSettings = new SettingsFile(kSettingsFile, kSettingsDir);
+		if (fSettings->InitCheck() != B_OK) {
+			fprintf(stderr, "FeedKit: Error loading preferences");
+		};
+
+		fSettings->Load();
+
+		if (fSettings->FindInt32("refresh", &fRefresh) != B_OK) {
+			fRefresh = kDefaultRefresh;
+			fSettings->AddInt32("refresh", fRefresh);
+
+			fSettings->Save();
+		};
+	}
 	
 	fFeedDaemon = new FileDaemon(kMaxDownloadDaemonThreads);
 	fParserManager = new ParserManager();
 };
 
 FeedServer::~FeedServer(void) {
-	SaveFeeds();
+	if (!fIntegrationTest)
+		SaveFeeds();
 
 	fURLFeeds.clear();
 		
@@ -192,6 +209,8 @@ FeedServer::~FeedServer(void) {
 	delete fParserManager;
 	delete fDownloadStatusRunner;
 	delete fFlattenFeedRunner;
+	delete fIntegrationTimeoutRunner;
+	delete fSettings;
 };
 
 //#pragma mark BApplication Hooks
@@ -223,6 +242,23 @@ void FeedServer::ReadyToRun(void) {
 		fprintf(stderr, "FeedServer smoke test: flatten runner ready\n");
 
 	curl_global_init(CURL_GLOBAL_NOTHING);
+
+	if (fIntegrationTest) {
+		fprintf(stderr, "FeedServer integration test: registering RSS and Atom fixtures\n");
+		fIntegrationTimeoutRunner = new BMessageRunner(BMessenger(this),
+			new BMessage(kMsgIntegrationTimeout), kIntegrationTimeout, 1);
+
+		BMessage rss(FeedKit::Private::ToServer::RegisterFeed);
+		rss.AddString("url", fIntegrationRSSURL.String());
+		rss.AddString("name", "FeedKit RSS integration fixture");
+		PostMessage(&rss);
+
+		BMessage atom(FeedKit::Private::ToServer::RegisterFeed);
+		atom.AddString("url", fIntegrationAtomURL.String());
+		atom.AddString("name", "FeedKit Atom integration fixture");
+		PostMessage(&atom);
+		return;
+	}
 
 	if (find_directory(B_USER_SETTINGS_DIRECTORY, &fSettingsPath) == B_OK) {
 		BPath watchPath(fSettingsPath);
@@ -327,7 +363,8 @@ bool FeedServer::QuitRequested(void) {
 	if (fSmokeTest)
 		fprintf(stderr, "FeedServer smoke test: clean shutdown requested\n");
 
-	StopAutoStartClients();
+	if (!fIntegrationTest)
+		StopAutoStartClients();
 
 	BMessenger(fFeedDaemon).SendMessage(B_QUIT_REQUESTED);
 
@@ -336,6 +373,11 @@ bool FeedServer::QuitRequested(void) {
 		fprintf(stderr, "FeedServer smoke test: QuitRequested complete\n");
 
 	return BApplication::QuitRequested();
+};
+
+bool FeedServer::IntegrationTestPassed(void) const {
+	return fIntegrationTest && fIntegrationTestComplete
+		&& !fIntegrationTestFailed;
 };
 
 //#pragma mark ObjectSource Hooks
@@ -1038,6 +1080,73 @@ void FeedServer::SaveFeeds(void) {
 	};
 };
 
+void FeedServer::FailIntegrationTest(const char *reason) {
+	if (!fIntegrationTest || fIntegrationTestComplete)
+		return;
+
+	fIntegrationTestFailed = true;
+	fIntegrationTestComplete = true;
+	fprintf(stderr, "FeedServer integration test failed: %s\n", reason);
+	PostMessage(B_QUIT_REQUESTED);
+};
+
+void FeedServer::RecordIntegrationDownload(Feed *feed) {
+	if (!fIntegrationTest || fIntegrationTestComplete)
+		return;
+
+	const char *expectedTitle = NULL;
+	const char *expectedItemTitle = NULL;
+	if (strcmp(feed->URL(), fIntegrationRSSURL.String()) == 0) {
+		expectedTitle = "FeedKit RSS integration fixture";
+		expectedItemTitle = "RSS fixture item";
+	} else if (strcmp(feed->URL(), fIntegrationAtomURL.String()) == 0) {
+		expectedTitle = "FeedKit Atom integration fixture";
+		expectedItemTitle = "Atom fixture item";
+	} else {
+		FailIntegrationTest("a parser returned an unexpected feed URL");
+		return;
+	}
+
+	if (feed->ChannelCount() != 1) {
+		FailIntegrationTest("a fixture did not produce exactly one channel");
+		return;
+	}
+
+	Channel *channel = feed->ChannelAt(0);
+	if (channel == NULL || strcmp(channel->Title(), expectedTitle) != 0) {
+		FailIntegrationTest("a fixture channel title was parsed incorrectly");
+		return;
+	}
+	if (channel->ItemCount() != 1 || channel->ItemAt(0) == NULL
+		|| strcmp(channel->ItemAt(0)->Title(), expectedItemTitle) != 0) {
+		FailIntegrationTest("a fixture item count or title was parsed incorrectly");
+		return;
+	}
+
+	int32 count = ++fIntegrationDownloads[feed->URL()];
+	fprintf(stderr, "FeedServer integration test: %s download %i validated\n",
+		expectedTitle, count);
+
+	int32 rssCount = fIntegrationDownloads[fIntegrationRSSURL];
+	int32 atomCount = fIntegrationDownloads[fIntegrationAtomURL];
+	if (rssCount == 1 && atomCount == 1) {
+		fprintf(stderr, "FeedServer integration test: forcing fixture refreshes\n");
+		BMessage refreshRSS(FeedKit::Private::ToServer::ForceRefresh);
+		refreshRSS.AddString("url", fIntegrationRSSURL.String());
+		PostMessage(&refreshRSS);
+
+		BMessage refreshAtom(FeedKit::Private::ToServer::ForceRefresh);
+		refreshAtom.AddString("url", fIntegrationAtomURL.String());
+		PostMessage(&refreshAtom);
+	} else if (rssCount >= 2 && atomCount >= 2) {
+		fIntegrationTestComplete = true;
+		delete fIntegrationTimeoutRunner;
+		fIntegrationTimeoutRunner = NULL;
+		fprintf(stderr, "FeedServer integration test passed: RSS and Atom registered and refreshed\n");
+		PostMessage(B_QUIT_REQUESTED);
+	}
+};
+
 //#pragma mark Private Event Handlers
 
 status_t FeedServer::HandleCheckDownloads(BMessage */*msg*/) {
@@ -1180,6 +1289,10 @@ status_t FeedServer::HandleFeedDownloadStart(BMessage *msg) {
 status_t FeedServer::HandleFeedDownloadError(BMessage *msg) {
 	FileRequest *request = NULL;
 	if (msg->FindPointer("filerequest", reinterpret_cast<void **>(&request)) != B_OK) return B_ERROR;
+	if (fIntegrationTest) {
+		FailIntegrationTest("a fixture download failed");
+		return B_ERROR;
+	}
 
 	urlfeed_t::iterator uIt = fURLFeeds.find(request->URL());
 	if (uIt == fURLFeeds.end()) return B_ERROR;
@@ -1208,11 +1321,13 @@ status_t FeedServer::HandleFeedDownloadFinish(BMessage *msg) {
 
 	if (request->Size() == 0) {
 		fprintf(stderr, "File not downloaded successfully\n");
-		delete progress;
+		if (fIntegrationTest)
+			FailIntegrationTest("a fixture download was empty");
 		
 		BMessage errorNotify(FeedKit::Private::FromServer::DownloadFeedError);
 		errorNotify.AddFlat("download", progress);
 		Broadcast(&errorNotify);
+		delete progress;
 		
 		return B_ERROR;
 	};
@@ -1240,6 +1355,9 @@ status_t FeedServer::HandleFeedDownloadFinish(BMessage *msg) {
 	free(buffer);
 	
 	if (refreshed == NULL) {
+		if (fIntegrationTest)
+			FailIntegrationTest("a fixture could not be parsed");
+
 		BMessage errorMsg(FeedKit::Private::FromServer::RegisterFeedError);
 
 		ErrorDetails error(ErrorCode::UnableToParseFeed, "Unable to parse feed");
@@ -1311,8 +1429,9 @@ status_t FeedServer::HandleFeedDownloadFinish(BMessage *msg) {
 //	delete request;
 // XXX 
 	
-	// Look for any Images on this feed's channels
-	for (uint32 i = 0; i < feed->ChannelCount(); i++) {
+	// Look for any Images on this feed's channels. Integration fixtures stay
+	// entirely in memory and must not create user data.
+	for (uint32 i = 0; !fIntegrationTest && i < feed->ChannelCount(); i++) {
 		Channel *channel = feed->ChannelAt(i);
 		Enclosure *image = channel->Image();
 		if (image) {
@@ -1353,20 +1472,22 @@ status_t FeedServer::HandleFeedDownloadFinish(BMessage *msg) {
 	};
 	
 	if (wasNewFeed) {
-		entry_ref ref;
+		if (!fIntegrationTest) {
+			entry_ref ref;
 
-		BPath path(fSettingsPath);
-		path.Append("BeClan");
-		path.Append("FeedKit");
-		path.Append("Feed");
-		path.Append("Data");
-		path.Append(feed->UUID());
+			BPath path(fSettingsPath);
+			path.Append("BeClan");
+			path.Append("FeedKit");
+			path.Append("Feed");
+			path.Append("Data");
+			path.Append(feed->UUID());
 
-		// Create an entry in fRefFeedUUID			
-		BFile file(path.Path(), B_CREATE_FILE | B_READ_WRITE);
-		get_ref_for_path(path.Path(), &ref);
-		
-		fRefFeedUUID[feed->UUID()] = ref;
+			// Create an entry in fRefFeedUUID
+			BFile file(path.Path(), B_CREATE_FILE | B_READ_WRITE);
+			get_ref_for_path(path.Path(), &ref);
+
+			fRefFeedUUID[feed->UUID()] = ref;
+		}
 
 		// New feed, send a "Subscribe Complete"
 		BMessage subscribed(FeedKit::Private::FromServer::RegisterFeedComplete);
@@ -1386,6 +1507,8 @@ status_t FeedServer::HandleFeedDownloadFinish(BMessage *msg) {
 			}
 		};
 	};
+
+	RecordIntegrationDownload(feed);
 	
 	return B_OK;
 };
@@ -1894,5 +2017,10 @@ status_t FeedServer::HandleChangeFeedSubscription(BMessage *msg) {
 status_t FeedServer::HandleFlattenFeeds(BMessage */*msg*/) {
 	SaveFeeds();
 
+	return B_OK;
+};
+
+status_t FeedServer::HandleIntegrationTimeout(BMessage */*msg*/) {
+	FailIntegrationTest("registration and refresh did not finish within 15 seconds");
 	return B_OK;
 };

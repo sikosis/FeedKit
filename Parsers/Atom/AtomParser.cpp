@@ -13,6 +13,7 @@
 #include <libfeedkit/SettingsManager.h>
 
 #include <ctype.h>
+#include <stdlib.h>
 
 //#pragma mark Namespace import
 
@@ -118,24 +119,27 @@ Feed *AtomParser::ParseFeed(const char *url, const char *data, int32 length) {
 		BString safe = "";
 		for (int32 i = 0; i < urlLen; i++) if (isalnum(url[i])) safe << url[i];
 
-		// Setup the template for the feed		
-		SettingsManager feedPref(AppTypes::SettingFeed, safe.String());
-		BMessage tmplate;
-		BMessage display;
-		display.AddInt32("type", B_BOOL_TYPE);
-		display.AddString("name", "convertlinks");
-		display.AddString("label", "Convert links to enclosures");
-		display.AddString("help", "Useful for Blogspot feeds");
-		display.AddInt32("display_type", FeedKit::Settings::CheckBox);
-		display.AddBool("default_value", false);
-		
-		tmplate.AddMessage("setting", &display);
-		feedPref.Template(&tmplate);
-
-		BMessage settings = feedPref.Settings();
-		
 		bool convertLinks = false;
-		if (settings.FindBool("convertlinks", &convertLinks) != B_OK) convertLinks = false;
+		SettingsManager *feedPref = NULL;
+		if (getenv("FEEDKIT_INTEGRATION_TEST") == NULL) {
+			// Setup the template for the feed.
+			feedPref = new SettingsManager(AppTypes::SettingFeed, safe.String());
+			BMessage tmplate;
+			BMessage display;
+			display.AddInt32("type", B_BOOL_TYPE);
+			display.AddString("name", "convertlinks");
+			display.AddString("label", "Convert links to enclosures");
+			display.AddString("help", "Useful for Blogspot feeds");
+			display.AddInt32("display_type", FeedKit::Settings::CheckBox);
+			display.AddBool("default_value", false);
+
+			tmplate.AddMessage("setting", &display);
+			feedPref->Template(&tmplate);
+
+			BMessage settings = feedPref->Settings();
+			if (settings.FindBool("convertlinks", &convertLinks) != B_OK)
+				convertLinks = false;
+		}
 
 		xmlXPathObjectPtr root = xmlXPathEvalExpression((const xmlChar *)"/", pathCtxt);
 		if (root != NULL) {
@@ -152,9 +156,9 @@ Feed *AtomParser::ParseFeed(const char *url, const char *data, int32 length) {
 							Channel *channel = new Channel();
 							feed->AddChannel(channel);
 
-							if (ParseAtomFeed(channel, node, convertLinks) == B_OK) {
-								feedPref.DisplayName(channel->Title());	
-							};
+							if (ParseAtomFeed(channel, node, convertLinks) == B_OK
+								&& feedPref != NULL)
+								feedPref->DisplayName(channel->Title());
 						};
 					};
 					
@@ -164,6 +168,7 @@ Feed *AtomParser::ParseFeed(const char *url, const char *data, int32 length) {
 		};
 
 		xmlXPathFreeObject(root);
+		delete feedPref;
 	};
 	xmlXPathFreeContext(pathCtxt);
 	

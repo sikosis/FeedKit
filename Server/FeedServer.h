@@ -47,7 +47,9 @@ class FeedServer : public BApplication, public ObjectSource {
 
 
 	public:
-									FeedServer(bool smokeTest = false);
+									FeedServer(bool smokeTest = false,
+										const char *integrationRSSURL = NULL,
+										const char *integrationAtomURL = NULL);
 									~FeedServer(void);
 
 		// BApplication Hooks					
@@ -66,8 +68,16 @@ class FeedServer : public BApplication, public ObjectSource {
 		// Public
 		void						UpdateEnclosureProgress(FileRequest *request,
 										FeedKit::Enclosure *enc, double downloaded);
+		bool						IntegrationTestPassed(void) const;
 	private:
 			bool						fSmokeTest;
+			bool						fIntegrationTest;
+			bool						fIntegrationTestFailed;
+			bool						fIntegrationTestComplete;
+			BString						fIntegrationRSSURL;
+			BString						fIntegrationAtomURL;
+			std::map<BString, int32>	fIntegrationDownloads;
+			BMessageRunner				*fIntegrationTimeoutRunner;
 
 		void						LaunchFeed(entry_ref ref);
 		status_t					SyndicateURL(const char *url, const char *name = "");
@@ -95,6 +105,8 @@ class FeedServer : public BApplication, public ObjectSource {
 
 		void						CheckIndexes(void);
 		void						SaveFeeds(void);
+		void						FailIntegrationTest(const char *reason);
+		void						RecordIntegrationDownload(FeedKit::Feed *feed);
 
 		// Event Handlers
 		status_t					HandleCheckDownloads(BMessage *msg);
@@ -123,6 +135,7 @@ class FeedServer : public BApplication, public ObjectSource {
 		status_t					HandleChannelIconDownloadError(BMessage *msg);
 		status_t					HandleChangeFeedSubscription(BMessage *msg);
 		status_t					HandleFlattenFeeds(BMessage *msg);
+		status_t					HandleIntegrationTimeout(BMessage *msg);
 
 		QueryLooper					*fFeedQuery;
 		QueryLooper					*fEnclosureQuery;
