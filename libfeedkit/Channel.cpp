@@ -194,12 +194,25 @@ status_t Channel::Unflatten(type_code code, const void *buffer, ssize_t numBytes
 		if (flat.FindString("copyright", &fCopyright) != B_OK) fCopyright = "";
 		if (flat.FindString("editor", &fEditor) != B_OK) fEditor = "";
 		if (flat.FindString("webmaster", &fWebmaster) != B_OK) fWebmaster = "";
-		if (flat.FindInt32("publisheddate", (int32 *)&fPublishedDate) != B_OK) fPublishedDate = now;
-		if (flat.FindInt32("lastbuilddate", (int32 *)&fLastBuildDate) != B_OK) fLastBuildDate = now;
+		int32 publishedDate;
+		if (flat.FindInt32("publisheddate", &publishedDate) == B_OK)
+			fPublishedDate = publishedDate;
+		else
+			fPublishedDate = now;
+
+		int32 lastBuildDate;
+		if (flat.FindInt32("lastbuilddate", &lastBuildDate) == B_OK)
+			fLastBuildDate = lastBuildDate;
+		else
+			fLastBuildDate = now;
 		if (flat.FindString("category", &fCategory) != B_OK) fCategory = "";
 		if (flat.FindString("generator", &fGenerator) != B_OK) fGenerator = "";
 		if (flat.FindString("docs", &fDocs) != B_OK) fDocs = "";
-		if (flat.FindInt32("ttl", &fTTL) != B_OK) fTTL = 0;
+		int32 ttl;
+		if (flat.FindInt32("ttl", &ttl) == B_OK)
+			fTTL = ttl;
+		else
+			fTTL = 0;
 		if (flat.FindString("picsrating", &fPICSRating) != B_OK) fPICSRating = "";
 				
 		BString enclosure;

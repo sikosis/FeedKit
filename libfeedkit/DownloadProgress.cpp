@@ -65,8 +65,17 @@ status_t DownloadProgress::Unflatten(type_code /*code*/, const void *buffer, ssi
 
 	if (ret == B_OK) {
 		if (flat.FindString("mime", &fMIME) != B_OK) ret = B_ERROR;
-		if (flat.FindInt32("start", (int32 *)&fStart) != B_OK) ret = B_ERROR;
-		if (flat.FindInt32("end", (int32 *)&fEnd) != B_OK) ret = B_ERROR;
+		int32 start;
+		if (flat.FindInt32("start", &start) == B_OK)
+			fStart = start;
+		else
+			ret = B_ERROR;
+
+		int32 end;
+		if (flat.FindInt32("end", &end) == B_OK)
+			fEnd = end;
+		else
+			ret = B_ERROR;
 		if (flat.FindFloat("speed", &fSpeed) != B_OK) ret = B_ERROR;
 		if (flat.FindInt32("size", &fSize) != B_OK) ret = B_ERROR;
 		if (flat.FindInt32("downloaded", &fDownloaded) != B_OK) ret = B_ERROR;

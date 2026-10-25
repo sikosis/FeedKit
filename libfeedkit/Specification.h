@@ -63,7 +63,8 @@ namespace FeedKit {
 								};
 		
 			virtual bool		IsSatisfiedBy(T item) {
-									return (Left()->IsSatisfiedBy(item) && Right()->IsSatisfiedBy(item));
+										return (this->Left()->IsSatisfiedBy(item)
+											&& this->Right()->IsSatisfiedBy(item));
 								};
 	};
 	
@@ -75,7 +76,8 @@ namespace FeedKit {
 								};
 		
 			virtual bool		IsSatisfiedBy(T item) {
-									return (Left()->IsSatisfiedBy(item) || Right()->IsSatisfiedBy(item));
+										return (this->Left()->IsSatisfiedBy(item)
+											|| this->Right()->IsSatisfiedBy(item));
 								};
 	};
 };

@@ -104,7 +104,11 @@ status_t Enclosure::Unflatten(type_code /*code*/, const void *buffer, ssize_t /*
 		if (flat.FindString("description", &fDescription) != B_OK) fDescription = "";
 		if (flat.FindInt32("size", &fSize) != B_OK) fSize = -1;
 		
-		if (flat.FindInt32("state", reinterpret_cast<int32 *>(&fState)) != B_OK) fState = Error;
+		int32 state;
+		if (flat.FindInt32("state", &state) == B_OK)
+			fState = static_cast<EnclosureState>(state);
+		else
+			fState = Error;
 		flat.FindRef("localRef", &fLocalRef);
 
 		DownloadProgress progress;

@@ -160,7 +160,11 @@ status_t Item::Unflatten(type_code code, const void *buffer, ssize_t numBytes) {
 		if (flat.FindString("link", &fLink) != B_OK) ret = B_ERROR;
 		if (flat.FindString("category", &fCategory) != B_OK) ret = B_ERROR;
 		if (flat.FindString("comments", &fComments) != B_OK) ret = B_ERROR;
-		if (flat.FindInt32("date", &fDate) != B_OK) ret = B_ERROR;
+		int32 date;
+		if (flat.FindInt32("date", &date) == B_OK)
+			fDate = date;
+		else
+			ret = B_ERROR;
 		if (flat.FindString("sourceurl", &fSourceURL) != B_OK) ret = B_ERROR;
 		if (flat.FindString("sourcetitle", &fSourceTitle) != B_OK) ret = B_ERROR;
 		if (flat.FindBool("read", &fRead) != B_OK) ret = B_ERROR;
