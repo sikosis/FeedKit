@@ -60,7 +60,7 @@ XRES		:= xres
 #	x86 Settings
 ifeq ($(CPU), x86)
 #	set the compiler and compiler flags
-	CC		=	gcc -c
+		CC		=	gcc
 
 #	SETTING: set the CFLAGS for each binary type	
 	ifeq ($(TYPE), DRIVER)
