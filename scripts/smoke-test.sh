@@ -1,0 +1,93 @@
+#!/bin/sh
+
+set -u
+
+root_dir=$(CDPATH= cd -- "$(dirname -- "$0")/.." && pwd)
+server="$root_dir/build/feed_server"
+atom="$root_dir/build/Parsers/Atom"
+rss="$root_dir/build/Parsers/RSS"
+log="$root_dir/build/smoke-test.log"
+server_pid=
+
+fail()
+{
+	echo "Smoke test failed: $1" >&2
+	if [ -f "$log" ]; then
+		echo "Server output ($log):" >&2
+		sed -n '1,240p' "$log" >&2
+	fi
+	exit 1
+}
+
+cleanup()
+{
+	if [ -n "$server_pid" ] && kill -0 "$server_pid" 2>/dev/null; then
+		kill "$server_pid" 2>/dev/null || true
+		wait "$server_pid" 2>/dev/null || true
+	fi
+}
+
+trap cleanup EXIT HUP INT TERM
+
+if [ "$(uname -s)" != "Haiku" ]; then
+	fail "this runtime check must be run on Haiku"
+fi
+
+command -v hey >/dev/null 2>&1 || fail "the Haiku 'hey' command is required"
+
+for artifact in "$server" "$atom" "$rss"; do
+	[ -f "$artifact" ] || fail "missing build artifact: $artifact"
+done
+
+LIBRARY_PATH="$root_dir/build${LIBRARY_PATH:+:$LIBRARY_PATH}"
+export LIBRARY_PATH
+
+: > "$log"
+"$server" > "$log" 2>&1 &
+server_pid=$!
+
+attempt=0
+while [ "$attempt" -lt 10 ]; do
+	if ! kill -0 "$server_pid" 2>/dev/null; then
+		wait "$server_pid" 2>/dev/null || true
+		server_pid=
+		fail "feed_server exited during startup"
+	fi
+
+	if grep -F 'Loading "Atom"... Done' "$log" >/dev/null 2>&1 \
+		&& grep -F 'Loading "RSS"... Done' "$log" >/dev/null 2>&1; then
+		break
+	fi
+
+	attempt=$((attempt + 1))
+	sleep 1
+done
+
+grep -F 'Loading "Atom"... Done' "$log" >/dev/null 2>&1 \
+	|| fail "Atom parser did not load"
+grep -F 'Loading "RSS"... Done' "$log" >/dev/null 2>&1 \
+	|| fail "RSS parser did not load"
+
+if ! hey "$server_pid" quit >/dev/null 2>&1; then
+	fail "could not request a clean server shutdown"
+fi
+
+attempt=0
+while kill -0 "$server_pid" 2>/dev/null && [ "$attempt" -lt 10 ]; do
+	attempt=$((attempt + 1))
+	sleep 1
+done
+
+if kill -0 "$server_pid" 2>/dev/null; then
+	fail "feed_server did not exit after the quit request"
+fi
+
+if ! wait "$server_pid"; then
+	server_pid=
+	fail "feed_server returned a failure status"
+fi
+
+server_pid=
+trap - EXIT HUP INT TERM
+
+echo "Smoke test passed: feed_server started, loaded Atom and RSS, and shut down cleanly."

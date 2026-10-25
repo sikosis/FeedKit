@@ -7,8 +7,8 @@ The current target is Haiku R1/beta6 on x86_64 and the modern `x86` secondary
 architecture on x86_gcc2 hybrid installations.
 
 > **Current status:** compatibility audit and restoration planning are
-> complete, and the first native R1/beta6 build iteration is in progress.
-> FeedKit is not yet confirmed to build or run successfully on R1/beta6.
+> complete. The default core target now builds successfully on R1/beta6
+> x86_64. Runtime behaviour and automated tests are not yet validated.
 
 See [DESIGN.md](DESIGN.md) for the full compatibility audit, technical
 findings, constraints, and acceptance criteria.
@@ -17,14 +17,14 @@ findings, constraints, and acceptance criteria.
 
 ![Audit: complete](https://img.shields.io/badge/1_Audit-complete-2ea44f)
 ![Design: complete](https://img.shields.io/badge/2_Design-complete-2ea44f)
-![Native build: in progress](https://img.shields.io/badge/3_Native_build-in_progress-d29922)
-![Core safety: planned](https://img.shields.io/badge/4_Core_safety-planned-8c959f)
+![Native build: complete](https://img.shields.io/badge/3_Native_build-complete-2ea44f)
+![Core safety: in progress](https://img.shields.io/badge/4_Core_safety-in_progress-d29922)
 ![Network and parsers: planned](https://img.shields.io/badge/5_Network_%26_parsers-planned-8c959f)
 ![Packaging: planned](https://img.shields.io/badge/6_Packaging-planned-8c959f)
 ![Clients: planned](https://img.shields.io/badge/7_Clients-planned-8c959f)
 ![Release: planned](https://img.shields.io/badge/8_Release-planned-8c959f)
 
-![Overall progress: 2 of 8 complete](https://img.shields.io/badge/Overall_progress-2_of_8_complete-0969da)
+![Overall progress: 3 of 8 complete](https://img.shields.io/badge/Overall_progress-3_of_8_complete-0969da)
 
 - Green: complete
 - Amber: in progress
@@ -37,8 +37,8 @@ findings, constraints, and acceptance criteria.
 | Original FeedKit baseline | Historical | Existing library, server, parsers, clients, preflet, and tests retained as the basis of this fork. |
 | R1/beta6 compatibility audit | Complete — 25 October 2026 | Audited the active Jam build, legacy makefiles, core library, server, parsers, clients, preflet, and tests against the beta6 SDK and package ecosystem. |
 | Restoration design | Complete — 25 October 2026 | Documented build blockers, correctness defects, dependency/API changes, compatibility constraints, staged goals, and release acceptance criteria in `DESIGN.md`. |
-| Native beta6 baseline | In progress — 25 October 2026 | `libfeedkit.so` and `feed_server` now compile and link on R1/beta6. Native build iterations repaired malformed makefiles, obsolete dependency/compiler flags, x86_64 type assumptions, deprecated curl handling, and repository-local link paths. RSS/Atom parser validation is currently waiting on `libxml2_devel`. |
-| Core safety and compatibility | Planned | Fix undefined behaviour and ownership defects while preserving UUIDs, serialized data, public APIs, application signatures, and stored user data. |
+| Native beta6 baseline | Complete — 25 October 2026 | User-confirmed successful default build of `libfeedkit.so`, `feed_server`, and the RSS/Atom parser add-ons on R1/beta6 x86_64. Build repairs covered malformed makefiles, dependencies, compiler/linker flags, fixed-width types, protected server access, modern curl callbacks, and repository-local linking. |
+| Core safety and compatibility | In progress — 25 October 2026 | Initial 64-bit serialization and ownership-adjacent fixes landed during build restoration. UUID fixtures, round-trip tests, memory-safety checks, and the remaining correctness audit are next. |
 | Network and parser modernization | Planned | Update curl, OpenSSL, temporary-file handling, parser discovery, feed fixtures, and server integration tests. |
 | Package and lifecycle integration | Planned | Add package-aware paths and an HPKG workflow, then verify installation, discovery, startup, persistence, and removal. |
 | Optional client ports | Planned | Port clients independently after the core is stable; replace obsolete NetPositive and InfoPopper integrations where necessary. |
@@ -89,10 +89,28 @@ preserve:
 
 ## Building and testing
 
-Exact beta6 build, test, and packaging commands will be added after the first
-native build baseline is established. The existing build files contain known
-obsolete paths and defects, so they should not yet be treated as a supported
-installation workflow.
+The default core build has been verified on Haiku R1/beta6 x86_64 with:
+
+```sh
+make clean
+make
+```
+
+Automated tests, runtime integration, packaging, and the secondary `x86`
+architecture are not yet validated.
+
+### Runtime smoke test
+
+On Haiku, the smoke target builds the core, starts `feed_server`, verifies that
+the RSS and Atom add-ons load, confirms that the server remains alive, and
+requests a clean shutdown:
+
+```sh
+make smoke
+```
+
+The captured server output is written to `build/smoke-test.log` when a check
+fails.
 
 The current native build requires the PCRE development package. On Haiku,
 install it with:

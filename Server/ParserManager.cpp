@@ -1,9 +1,11 @@
 #include "ParserManager.h"
 
+#include <Application.h>
 #include <Directory.h>
 #include <Entry.h>
 #include <FindDirectory.h>
 #include <Path.h>
+#include <Roster.h>
 
 #include <libfeedkit/Feed.h>
 #include <libfeedkit/FeedParser.h>
@@ -51,6 +53,16 @@ const char *kAddonPath = "feed_kit/Parsers";
 //#pragma mark Constructor
 
 ParserManager::ParserManager(void) {
+	app_info info;
+	if (be_app != NULL && be_app->GetAppInfo(&info) == B_OK) {
+		BPath executablePath(&info.ref);
+		BPath parserPath;
+		if (executablePath.GetParent(&parserPath) == B_OK) {
+			parserPath.Append("Parsers");
+			LoadAddons(parserPath.Path());
+		}
+	}
+
 	BPath path;
 	if (find_directory(B_USER_ADDONS_DIRECTORY, &path, true, NULL) == B_OK) {
 		path.Append(kAddonPath);
