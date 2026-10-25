@@ -1,5 +1,6 @@
 #include "FeedServer.h"
 
+#include <stdio.h>
 #include <string.h>
 
 #if 0
@@ -89,6 +90,14 @@ class DelayMessage : public BMessage {
 int main(int argc, char **argv) {
 	bool smokeTest = argc == 2 && strcmp(argv[1], "--smoke-test") == 0;
 	FeedServer server(smokeTest);
+	status_t status = server.InitCheck();
+	if (status != B_OK) {
+		fprintf(stderr, "feed_server initialization failed: %s\n",
+			strerror(status));
+		return 1;
+	}
+	if (smokeTest)
+		fprintf(stderr, "FeedServer smoke test: constructor complete\n");
 
 	server.Run();
 	

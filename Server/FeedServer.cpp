@@ -106,7 +106,8 @@ void PrintFeed(Feed *feed) {
 #endif
 
 FeedServer::FeedServer(bool smokeTest)
-	: BApplication(ServerSignature),
+	: BApplication(smokeTest
+		? "application/x-vnd.beclan.feed_server.smoke" : ServerSignature),
 	 fSmokeTest(smokeTest),
 	 fFeedQuery(NULL),
 	 fEnclosureQuery(NULL),
@@ -210,10 +211,17 @@ void FeedServer::MessageReceived(BMessage *msg) {
 
 void FeedServer::ReadyToRun(void) {
 	printf("FeedServer::ReadyToRun()\n");
+	if (fSmokeTest)
+		fprintf(stderr, "FeedServer smoke test: entering ReadyToRun\n");
+
 	fFlattenFeedRunner = new BMessageRunner(BMessenger(this),
 		new BMessage(kMsgFlattenFeeds), kFlattenFeedInterval);
+	if (fSmokeTest)
+		fprintf(stderr, "FeedServer smoke test: flatten runner ready\n");
 
 	CheckIndexes();
+	if (fSmokeTest)
+		fprintf(stderr, "FeedServer smoke test: indexes checked\n");
 
 	curl_global_init(CURL_GLOBAL_NOTHING);
 
@@ -238,6 +246,8 @@ void FeedServer::ReadyToRun(void) {
 
 	fDownloadStatusRunner = new BMessageRunner(BMessenger(this), new BMessage(kMsgCheckDownloads),
 		kDownloadStatusInterval);
+	if (fSmokeTest)
+		fprintf(stderr, "FeedServer smoke test: download runner ready\n");
 
 	fVolRoster = new BVolumeRoster();
 	fVolRoster->StartWatching(BMessenger(this));
