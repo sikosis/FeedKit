@@ -19,6 +19,7 @@
 #include <File.h>
 #include <FindDirectory.h>
 #include <kernel/fs_index.h>
+#include <kernel/fs_info.h>
 #include <MessageRunner.h>
 #include <NodeMonitor.h>
 #include <Roster.h>
@@ -221,30 +222,33 @@ void FeedServer::ReadyToRun(void) {
 	if (fSmokeTest)
 		fprintf(stderr, "FeedServer smoke test: flatten runner ready\n");
 
-	CheckIndexes();
-	if (fSmokeTest)
-		fprintf(stderr, "FeedServer smoke test: indexes checked\n");
-
 	curl_global_init(CURL_GLOBAL_NOTHING);
 
 	if (find_directory(B_USER_SETTINGS_DIRECTORY, &fSettingsPath) == B_OK) {
-		node_ref nref;
-		
-		BDirectory dir(fSettingsPath.Path());
-		dir.CreateDirectory("BeClan", NULL);
-		dir.CreateDirectory("BeClan/FeedKit", NULL);
+		BPath watchPath(fSettingsPath);
+		watchPath.Append("BeClan/FeedKit");
 
-		dir.SetTo("BeClan/FeedKit");
-		dir.GetNodeRef(&nref);
-		
-		status_t result = watch_node(&nref, B_WATCH_DIRECTORY, be_app_messenger);
-		if (result != B_OK) {
-			fprintf(stderr, "FeedServer::ReadyToRun(): Unable to watch settings directory: %s\n",
+		status_t result = create_directory(watchPath.Path(), 0755);
+		if (result == B_OK || result == B_FILE_EXISTS) {
+			BDirectory directory(watchPath.Path());
+			node_ref node;
+			result = directory.GetNodeRef(&node);
+			if (result == B_OK)
+				result = watch_node(&node, B_WATCH_DIRECTORY, be_app_messenger);
+		}
+
+		if (result != B_OK && result != B_FILE_EXISTS) {
+			fprintf(stderr,
+				"FeedServer::ReadyToRun(): Unable to prepare settings directory: %s\n",
 				strerror(result));
 		}
 	} else {
 		fprintf(stderr, "FeedServer::ReadyToRun(): Unable to find settings path\n");
 	};
+
+	CheckIndexes();
+	if (fSmokeTest)
+		fprintf(stderr, "FeedServer smoke test: indexes checked\n");
 
 	fDownloadStatusRunner = new BMessageRunner(BMessenger(this), new BMessage(kMsgCheckDownloads),
 		kDownloadStatusInterval);
@@ -981,39 +985,31 @@ status_t FeedServer::DownloadEnclosure(FeedKit::Feed *feed, FeedKit::Channel *ch
 };
 
 void FeedServer::CheckIndexes(void) {
-	BVolumeRoster roster;
-	BVolume volume;
-	status_t status = roster.GetBootVolume(&volume);
-	if (status != B_OK || volume.InitCheck() != B_OK) {
-		fprintf(stderr, "FeedServer::CheckIndexes(): Unable to open the boot volume: %s\n",
-			strerror(status));
+	if (fSettingsPath.InitCheck() != B_OK) {
+		fprintf(stderr, "FeedServer::CheckIndexes(): Settings path is unavailable\n");
 		return;
 	}
 
-	char volumeName[B_OS_NAME_LENGTH];
-	volume.GetName(volumeName);
-
-	if (volume.IsReadOnly() || !volume.KnowsAttr() || !volume.KnowsQuery()
-		|| !volume.KnowsMime()) {
-		fprintf(stderr, "FeedServer::CheckIndexes(): Boot volume %s does not support writable indexes\n",
-			volumeName);
+	dev_t device = dev_for_path(fSettingsPath.Path());
+	if (device < B_OK) {
+		fprintf(stderr, "FeedServer::CheckIndexes(): Unable to resolve settings volume: %s\n",
+			strerror(device));
 		return;
 	}
 
 	index_info info;
-	if (fs_stat_index(volume.Device(), kAttrEnclosureUUID, &info) == B_OK)
+	if (fs_stat_index(device, kAttrEnclosureUUID, &info) == B_OK)
 		return;
 
-	int result = fs_create_index(volume.Device(), kAttrEnclosureUUID,
-		B_STRING_TYPE, 0);
+	int result = fs_create_index(device, kAttrEnclosureUUID, B_STRING_TYPE, 0);
 	if (result != B_OK) {
-		fprintf(stderr, "FeedServer::CheckIndexes(): Unable to create index \"%s\" on %s: %s\n",
-			kAttrEnclosureUUID, volumeName, strerror(errno));
+		fprintf(stderr, "FeedServer::CheckIndexes(): Unable to create index \"%s\": %s\n",
+			kAttrEnclosureUUID, strerror(errno));
 		return;
 	}
 
-	fprintf(stderr, "FeedServer::CheckIndexes(): Created index \"%s\" on %s\n",
-		kAttrEnclosureUUID, volumeName);
+	fprintf(stderr, "FeedServer::CheckIndexes(): Created index \"%s\"\n",
+		kAttrEnclosureUUID);
 };
 
 void FeedServer::SaveFeeds(void) {
