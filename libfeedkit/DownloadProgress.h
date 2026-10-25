@@ -38,7 +38,7 @@ namespace FeedKit {
 		protected:
 								DownloadProgress(const char *mime, time_t start,
 									int32 size, int32 downloaded, time_t end = 0);
-			friend class		FeedServer;
+			friend class		::FeedServer;
 
 		private:
 			time_t				CalculateETA(void);

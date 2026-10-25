@@ -10,6 +10,8 @@
 #include <map>
 #include <vector>
 
+class FeedServer;
+
 namespace FeedKit {
 	class Channel;
 	class FeedParser;
@@ -59,7 +61,7 @@ namespace FeedKit {
 			void			Name(const char *name);
 			void			SetSubscribed(bool subscribe);
 			
-			friend class	FeedServer;
+			friend class	::FeedServer;
 			friend class	FeedParser;
 
 		private:

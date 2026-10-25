@@ -6,6 +6,8 @@
 
 #include <libfeedkit/FeedKitConstants.h>
 
+class FeedServer;
+
 namespace FeedKit {
 	class Item;
 
@@ -46,7 +48,7 @@ namespace FeedKit {
 		protected:
 			void				UpdateUUID(void);
 
-			friend class		FeedServer;	
+			friend class		::FeedServer;
 		private:
 			Item				*fItem;
 			BString				fItemUUID;

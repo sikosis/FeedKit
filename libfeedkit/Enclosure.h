@@ -62,7 +62,7 @@ namespace FeedKit {
 			void				SetState(EnclosureState state);
 			void				SetProgress(DownloadProgress *progress);
 
-			friend class		FeedServer;
+			friend class		::FeedServer;
 
 		private:
 			BString				fURL;

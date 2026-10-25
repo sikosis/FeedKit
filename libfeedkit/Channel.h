@@ -10,6 +10,8 @@
 
 #include <map>
 
+class FeedServer;
+
 namespace FeedKit {
 	class Feed;
 	class Item;
@@ -99,7 +101,7 @@ namespace FeedKit {
 		protected:
 			void				UpdateUUID(void);
 						
-			friend class		FeedServer;
+			friend class		::FeedServer;
 	
 		private:
 			Feed				*fFeed;

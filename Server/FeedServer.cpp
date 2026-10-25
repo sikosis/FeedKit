@@ -446,7 +446,7 @@ void FeedServer::LaunchFeed(entry_ref ref) {
 	if (feed->Subscribed() == true) SyndicateURL(feed->URL(), feed->Name());
 };
 
-status_t FeedServer::SyndicateURL(const char *url, const char *name = "") {
+status_t FeedServer::SyndicateURL(const char *url, const char *name) {
 	printf("FeedServer::SyndicateURL(%s, %s)\n", url, name);
 
 	// If there's no refresh runner for this URL, set up a new one for the default interval -
@@ -893,7 +893,7 @@ void FeedServer::FindExistingEnclosureDownloads(FeedKit::Feed *feed) {
 };
 
 status_t FeedServer::DownloadEnclosure(FeedKit::Feed *feed, FeedKit::Channel *channel,
-	FeedKit::Item *item, Enclosure *enclosure, entry_ref ref, int32 offset = 0) {
+	FeedKit::Item *item, Enclosure *enclosure, entry_ref ref, int32 offset) {
 
 	DelayedFlattenedObject progressUpdateCommand("feed", feed);
 	BMessage progress(FeedKit::Private::FromServer::DownloadEnclosureProgress);

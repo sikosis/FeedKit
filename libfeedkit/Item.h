@@ -11,6 +11,8 @@
 #include <libfeedkit/Enclosure.h>
 #include <libfeedkit/EnclosureSpecification.h>
 
+class FeedServer;
+
 namespace FeedKit {
 	class Item;
 	
@@ -86,7 +88,7 @@ namespace FeedKit {
 			void				SetNew(bool isNew);
 			void				UpdateUUID(void);
 
-			friend class		FeedServer;
+			friend class		::FeedServer;
 	
 		private:
 			Channel				*fChannel;
