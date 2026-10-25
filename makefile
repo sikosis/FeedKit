@@ -49,6 +49,7 @@ optional:
 	done
 
 clean:
+	$(MAKE) -C libfeedkit -f makefile clean
 	@for f in $(SUBDIRS) ; do \
 		$(MAKE) -C $$f -f makefile clean || exit 1; \
 	done

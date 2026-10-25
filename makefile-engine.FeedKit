@@ -111,7 +111,8 @@ ifeq ($(CPU), x86)
 		LDFLAGS += -Xlinker -soname=_APP_
 	else
 	ifeq ($(TYPE), SHARED)
-		LDFLAGS += -nostart -Xlinker -soname=$(NAME)
+			CFLAGS += -fPIC
+			LDFLAGS += -shared -Wl,-soname,$(NAME)
 	else
 	ifeq ($(TYPE), DRIVER)
 		LDFLAGS += -nostdlib /boot/develop/lib/x86/_KERNEL_

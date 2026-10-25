@@ -49,21 +49,27 @@ endif
 
 ifeq ($(LIBFEEDKIT_HAVE_OPENSSL), )
 
-.PHONY: default
+.PHONY: default clean
 default:
 	@echo "libfeedkit requires the OpenSSL development package." >&2
 	@exit 1
+
+clean:
+	@rm -rf dep/* obj.x86/* obj.ppc/*
 
 else
 
 ifeq ($(LIBFEEDKIT_HAVE_PCRE), )
 
-.PHONY: default
+.PHONY: default clean
 default:
 	@echo "libfeedkit requires PCRE 8 development headers for the active architecture." >&2
 	@echo "Install libpcre_devel (or libpcre_x86_devel for an x86 secondary build)." >&2
 	@echo "Available packages: pkgman search libpcre" >&2
 	@exit 1
+
+clean:
+	@rm -rf dep/* obj.x86/* obj.ppc/*
 
 else
 	
