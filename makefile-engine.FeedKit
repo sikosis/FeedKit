@@ -10,12 +10,14 @@ SYSTEM_INCLUDE_PATHS+=$(TOPDIR)
 
 LOCAL_INCLUDE_PATHS += /boot/home/config/include/gc
 
-#	determine wheather running on x86 or ppc
-MACHINE=$(shell uname -m)
-ifeq ($(MACHINE), BePC)
+#	Determine the target family reported by current and historical Haiku.
+MACHINE := $(shell uname -m)
+ifneq ($(filter BePC i386 i486 i586 i686 x86_64,$(MACHINE)),)
 	CPU = x86
-else
+else ifneq ($(filter ppc powerpc,$(MACHINE)),)
 	CPU = ppc
+else
+$(error Unsupported machine architecture: $(MACHINE))
 endif
 
 #	set the directory where object files and binaries will be created

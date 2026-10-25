@@ -3,7 +3,7 @@
 VERSION:=0.1
 DIST:=feedkit-$(VERSION)
 BACKUP_PATH:=Backup/$(shell date +%Y%m%d%H%M%S).zip
-BACKUP_INCLUDE:=$(shell find | egrep "\.cpp|\.h|\.wks|makefile|\.sh|Worksheet|\.rsrc|Icons/")
+BACKUP_INCLUDE:=$(shell find | grep -E "\.cpp|\.h|\.wks|makefile|\.sh|Worksheet|\.rsrc|Icons/")
 
 COMMON_LIB:=$(shell finddir B_COMMON_LIB_DIRECTORY)
 COMMON_SERVERS:=$(shell finddir B_COMMON_SERVERS_DIRECTORY)
@@ -33,16 +33,16 @@ FEEDKIT_HEADERS=$(addprefix /boot/home/config/include/, $(wildcard libfeedkit/*.
 .PHONY: default clean install dist common
 
 default .DEFAULT :
-	$(MAKE) -C libfeedkit -f makefile $@ || exit -1; 
+	$(MAKE) -C libfeedkit -f makefile $@ || exit 1;
 	ln -sf "$(BUILD)/libfeedkit.so" "$(COMMON_LIB)"
 
 	-@for f in $(SUBDIRS) ; do \
-		$(MAKE) -C $$f -f makefile $@ || exit -1; \
+		$(MAKE) -C $$f -f makefile $@ || exit 1; \
 	done
 
 clean:
 	-@for f in $(SUBDIRS) ; do \
-		$(MAKE) -C $$f -f makefile clean || exit -1; \
+		$(MAKE) -C $$f -f makefile clean || exit 1; \
 	done
 
 symlinks: common
