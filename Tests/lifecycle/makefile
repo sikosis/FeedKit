@@ -1,0 +1,23 @@
+## BeOS Generic Makefile v2.2 ##
+
+NAME= feedkit_lifecycle_tests
+SVG_ICON=
+TOPDIR=../..
+TARGET_DIR=$(TOPDIR)/build/Tests
+TYPE= APP
+SRCS= Main.cpp
+RSRCS=
+LIBS= be stdc++ feedkit
+LIBPATHS= $(TOPDIR)/build
+SYSTEM_INCLUDE_PATHS=
+LOCAL_INCLUDE_PATHS= $(TOPDIR)
+OPTIMIZE= SOME
+DEFINES=
+WARNINGS= ALL
+SYMBOLS= TRUE
+DEBUGGER=
+COMPILER_FLAGS=
+LINKER_FLAGS=
+APP_VERSION=
+
+include $(TOPDIR)/makefile-engine.FeedKit

@@ -1,7 +1,7 @@
 # makefile for all sample code
 
 VERSION:=0.1.0
-PACKAGE_REVISION?=1
+PACKAGE_REVISION?=2
 DIST:=feedkit-$(VERSION)
 BACKUP_PATH:=Backup/$(shell date +%Y%m%d%H%M%S).zip
 BACKUP_INCLUDE:=$(shell find | grep -E "\.cpp|\.h|\.wks|makefile|\.sh|Worksheet|\.rsrc|Icons/")
@@ -27,7 +27,7 @@ SUBDIRS = $(CORE_SUBDIRS) Tests
 
 FEEDKIT_HEADERS=$(addprefix /boot/home/config/include/, $(wildcard libfeedkit/*.h))
 
-.PHONY: default clean test unit smoke integration optional package-stage package-check package install dist common
+.PHONY: default clean test unit smoke integration optional package-stage package-check package installed-package-check install dist common
 
 default:
 	$(MAKE) -C libfeedkit -f makefile $@ || exit 1;
@@ -61,6 +61,10 @@ package-check: package-stage
 package: package-check
 	./scripts/create-package.sh "$(PACKAGE_ROOT)" "$(PACKAGE_FILE)" \
 		"$(VERSION)" "$(PACKAGE_REVISION)" "$(PACKAGE_ARCH)"
+
+installed-package-check:
+	$(MAKE) -C Tests/lifecycle -f makefile default
+	./scripts/installed-package-test.sh
 
 clean:
 	$(MAKE) -C libfeedkit -f makefile clean

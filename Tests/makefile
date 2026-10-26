@@ -3,7 +3,8 @@
 SUBDIRS = \
 	libfeedkit \
 	network \
-	parsers
+	parsers \
+	lifecycle
 
 .PHONY: default clean test
 	

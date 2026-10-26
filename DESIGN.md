@@ -9,10 +9,11 @@ library, server, RSS and Atom parser add-ons build on beta6 x86_64, and the
 113-check model, 55-check FileRequest, and 47-check parser suites pass. Phase 3
 network/parser integration also passes registration, refresh, failure
 isolation, persistence, restart, and clean-shutdown checks. Phase 4 packaging
-work has started with a non-destructive staged layout, content check, and
-local HPKG generation; HaikuPorter and installed lifecycle validation still
-require native verification. Optional clients and release validation remain
-and are tracked in `README.md`.
+work has started: the staged layout, content check, and initial x86_64 HPKG
+generation pass natively. Explicit on-demand startup and installed-image
+validation are implemented but still require native verification. HaikuPorter,
+optional clients, and release validation remain and are tracked in
+`README.md`.
 
 The audit used:
 
@@ -399,6 +400,12 @@ Acceptance criteria:
 - a clean beta6 system can discover and start the server;
 - existing settings and stored feeds remain readable; and
 - uninstalling the package does not delete user data.
+
+The selected lifecycle is explicit on-demand startup. Creating a
+`FeedListener` remains passive; calling `StartListening()` launches the server
+through `BRoster` using the preserved application signature if it is not
+already running. This matches client intent without keeping an unused daemon
+resident or adding a new boot-time service.
 
 ### Phase 5: port clients independently
 

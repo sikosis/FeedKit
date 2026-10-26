@@ -341,8 +341,16 @@ status_t FeedListener::InitCheck(void) {
 		
 void FeedListener::StartListening(void) {
 	if (fListening == false) {
-		AddListener(fTarget);
 		fListening = true;
+
+		if (fMsgr.IsValid() == false) {
+			status_t status = be_roster->Launch(FeedKit::ServerSignature);
+			if (status == B_OK || status == B_ALREADY_RUNNING)
+				fMsgr = BMessenger(FeedKit::ServerSignature);
+		}
+
+		if (fMsgr.IsValid() == true)
+			AddListener(fTarget);
 	};
 };
 

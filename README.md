@@ -10,7 +10,8 @@ architecture on x86_gcc2 hybrid installations.
 > complete. The default core target now builds successfully on R1/beta6
 > x86_64. Network and parser modernization is complete: the native focused
 > suites pass all 215 checks, and the startup, failure-isolation, persistence,
-> restart, and clean-shutdown integration paths pass on beta6.
+> restart, and clean-shutdown integration paths pass on beta6. The staged
+> package layout and initial x86_64 HPKG generation also pass natively.
 
 See [DESIGN.md](DESIGN.md) for the full compatibility audit, technical
 findings, constraints, and acceptance criteria.
@@ -42,7 +43,7 @@ findings, constraints, and acceptance criteria.
 | Native beta6 baseline | Complete — 25 October 2026 | User-confirmed successful default build of `libfeedkit.so`, `feed_server`, and the RSS/Atom parser add-ons on R1/beta6 x86_64. Build repairs covered malformed makefiles, dependencies, compiler/linker flags, fixed-width types, protected server access, modern curl callbacks, and repository-local linking. |
 | Core safety and compatibility | Complete — 26 October 2026 | The dependency-free suite passes all 113 checks natively on beta6. It covers stable UUIDs, serialization, download progress, listener safety, parent-owned model trees, deep copy and assignment, replacement-safe unflattening, independent refresh merges, download-request ownership, and complete server teardown. Native smoke and integration runs also pass. |
 | Network and parser modernization | Complete — 26 October 2026 | Native beta6 smoke and integration tests pass, including RSS/Atom registration and refresh, ordered package-aware parser discovery, clean shutdown, missing downloads, malformed-feed isolation, and two-process persistence/restart with stable UUIDs. The 55-check FileRequest suite covers local files and offline loopback HTTP. The 47-check parser suite covers valid, malformed, incomplete, discovered, duplicate-path, ISO-8859-1, and UTF-8 cases. Together with 113 model checks, all 215 focused checks pass. |
-| Package and lifecycle integration | In progress — 27 October 2026 | A non-destructive staged package layout and exact content check now cover the library, server, parser add-ons, public headers, and documentation. Local HPKG generation is ready for native verification. The HaikuPorter recipe, installed-server discovery, lifecycle decision, and install/remove validation remain. |
+| Package and lifecycle integration | In progress — 27 October 2026 | The staged layout and initial x86_64 HPKG generation pass natively. Explicit `StartListening()`-driven on-demand startup is selected and an installed-image check covers the packaged library, server, and parsers. Installed discovery, removal/user-data preservation, the HaikuPorter recipe, and secondary-architecture validation remain. |
 | Optional client ports | Planned | Port clients independently after the core is stable; replace obsolete NetPositive and InfoPopper integrations where necessary. |
 | Beta6 release validation | Planned | Pass builds, tests, integration checks, and HPKG installation on x86_64 and the modern secondary `x86` architecture. |
 
@@ -162,10 +163,28 @@ After the layout check passes, create and inspect a local HPKG with:
 make package
 ```
 
-This writes `build/feedkit-0.1.0-1-<architecture>.hpkg`. It validates the
+This writes `build/feedkit-0.1.0-2-<architecture>.hpkg`. It validates the
 embedded package name, version, architecture, server, library, and parser
 paths with Haiku's `package` tool. It does not install, publish, or otherwise
 activate the package.
+
+FeedKit uses explicit on-demand startup: constructing a listener has no
+system-wide effect, while `FeedListener::StartListening()` asks `BRoster` to
+launch the server by its preserved `application/x-vnd.beclan.feed_server`
+signature when necessary. It does not install a permanent `launch_daemon`
+service.
+
+After manually installing the HPKG, verify that the runtime library, server,
+and parser add-ons are resolved from the activated package with:
+
+```sh
+make installed-package-check
+```
+
+The check deliberately fails if an old non-packaged `libfeedkit.so` shadows
+the packaged library. It starts the server through `StartListening()`, checks
+the server and both parser image paths, then requests a clean shutdown. It
+does not install or uninstall packages.
 
 The current native build requires the PCRE development package. On Haiku,
 install it with:
