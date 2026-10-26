@@ -4,12 +4,9 @@
 #include "Item.h"
 #include "Feed.h"
 #include "ItemSpecification.h"
+#include "SHA1.h"
 
 #include <Message.h>
-
-#include <openssl/sha.h>
-
-#include <stdio.h>
 #include <stdlib.h>
 #include <parsedate.h>
 
@@ -317,7 +314,7 @@ const char *Channel::Language(void) const {
 };
 
 const char *Channel::Copyright(void) const {
-	return fEditor.String();
+	return fCopyright.String();
 };
 
 const char *Channel::Editor(void) const {
@@ -526,21 +523,9 @@ const char *Channel::UUID(void) const {
 const char *Channel::LocalUUID(void) const {
 	if (fLocalUUID.Length() == 0) {
 		BString localID = "";
-		uchar hash[SHA_DIGEST_LENGTH];
-		char buffer[3];
-
-		memset(hash, '\0', SHA_DIGEST_LENGTH);
-		memset(buffer, '\0', sizeof(buffer));
 
 		localID << Link() << "#" << Title();
-		
-		SHA1((const uchar *)localID.String(), localID.Length(), hash);
-
-		for (int32 i = 0; i < SHA_DIGEST_LENGTH; i++) {
-			snprintf(buffer, sizeof(buffer), "%02x", hash[i]);
-			
-			fLocalUUID << buffer;
-		};
+		Private::SHA1ToHex(localID.String(), localID.Length(), &fLocalUUID);
 	};
 	
 	return fLocalUUID.String();

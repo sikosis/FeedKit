@@ -1,11 +1,8 @@
 #include "Feed.h"
 #include "Channel.h"
+#include "SHA1.h"
 
 #include <Message.h>
-
-#include <openssl/sha.h>
-
-#include <stdio.h>
 
 //#pragma mark Namespace import
 
@@ -214,18 +211,8 @@ Channel *Feed::EquivalentChannel(Channel *channel) const {
 };
 
 const char *Feed::UUID(void) const {
-	if (fUUID.Length() == 0) {
-		uchar hash[SHA_DIGEST_LENGTH];
-		char buffer[3];
-
-		SHA1((const uchar *)fURL.String(), fURL.Length(), hash);
-
-		for (int32 i = 0; i < SHA_DIGEST_LENGTH; i++) {
-			snprintf(buffer, sizeof(buffer), "%02x", hash[i]);
-			
-			fUUID << buffer;
-		};
-	};
+	if (fUUID.Length() == 0)
+		Private::SHA1ToHex(fURL.String(), fURL.Length(), &fUUID);
 	
 	return fUUID.String();
 };

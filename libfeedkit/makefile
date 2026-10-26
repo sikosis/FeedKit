@@ -12,16 +12,19 @@ LIBFEEDKIT_HAVE_OPENSSL=
 SYSTEM_DEVELOP_DIR:=$(shell finddir B_SYSTEM_DEVELOP_DIRECTORY 2>/dev/null)
 USER_NONPACKAGED_DEVELOP_DIR:=$(shell finddir B_USER_NONPACKAGED_DEVELOP_DIRECTORY 2>/dev/null)
 
-ifneq ($(wildcard /boot/develop/headers/openssl/sha.h), )
+ifneq ($(wildcard /boot/develop/headers/openssl/evp.h), )
   LIBFEEDKIT_HAVE_OPENSSL:=1
 endif
-ifneq ($(wildcard /boot/home/config/include/openssl/sha.h), )
+ifneq ($(wildcard /boot/home/config/include/openssl/evp.h), )
   LIBFEEDKIT_HAVE_OPENSSL:=1
 endif
-ifneq ($(wildcard $(SYSTEM_DEVELOP_DIR)/headers/openssl/sha.h), )
+ifneq ($(wildcard $(SYSTEM_DEVELOP_DIR)/headers/openssl/evp.h), )
   LIBFEEDKIT_HAVE_OPENSSL:=1
 endif
-ifneq ($(wildcard $(USER_NONPACKAGED_DEVELOP_DIR)/headers/openssl/sha.h), )
+ifneq ($(wildcard $(USER_NONPACKAGED_DEVELOP_DIR)/headers/openssl/evp.h), )
+  LIBFEEDKIT_HAVE_OPENSSL:=1
+endif
+ifneq ($(shell pkg-config --exists openssl 2>/dev/null && echo yes), )
   LIBFEEDKIT_HAVE_OPENSSL:=1
 endif
 
@@ -110,6 +113,7 @@ libfeedkit_src := \
 	ObjectCache.cpp \
 	SettingsManager.cpp \
 	SettingsView.cpp \
+	SHA1.cpp \
 	TraceFeedHandler.cpp \
 #
 

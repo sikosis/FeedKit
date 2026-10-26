@@ -1,12 +1,10 @@
 #include "Content.h"
 #include "Item.h"
+#include "SHA1.h"
 
 #include <Message.h>
 
-#include <openssl/sha.h>
-
 #include <stdlib.h>
-#include <stdio.h>
 
 //#pragma mark Namespace
 
@@ -161,21 +159,9 @@ const char *Content::UUID(void) const {
 const char *Content::LocalUUID(void) const {
 	if (fLocalUUID.Length() == 0) {
 		BString localID = "";
-		uchar hash[SHA_DIGEST_LENGTH];
-		char buffer[3];
-
-		memset(hash, '\0', SHA_DIGEST_LENGTH);
-		memset(buffer, '\0', sizeof(buffer));
 
 		localID << MIMEType() << "-" << Summary() << "#" << Text();
-		
-		SHA1((const uchar *)localID.String(), localID.Length(), hash);
-
-		for (int32 i = 0; i < SHA_DIGEST_LENGTH; i++) {
-			snprintf(buffer, sizeof(buffer), "%02x", hash[i]);
-			
-			fLocalUUID << buffer;
-		};
+		Private::SHA1ToHex(localID.String(), localID.Length(), &fLocalUUID);
 	};
 	
 	return fLocalUUID.String();

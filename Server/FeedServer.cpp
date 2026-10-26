@@ -462,6 +462,7 @@ void FeedServer::UpdateEnclosureProgress(FileRequest *req, Enclosure *enc, doubl
 	fprintf(stderr, "Set state called\n");
 		
 	enc->SetProgress(progress);
+	delete progress;
 	
 	fprintf(stderr, "SetProgress called\n");
 };

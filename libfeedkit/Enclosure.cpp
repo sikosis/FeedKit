@@ -1,11 +1,8 @@
 #include "Enclosure.h"
 #include "DownloadProgress.h"
+#include "SHA1.h"
 
 #include <Message.h>
-
-#include <openssl/sha.h>
-
-#include <stdio.h>
 
 //#pragma mark Namespace import
 
@@ -93,6 +90,7 @@ status_t Enclosure::Flatten(void *buffer, ssize_t numBytes) const {
 status_t Enclosure::Unflatten(type_code /*code*/, const void *buffer, ssize_t /*numBytes*/) {
 	BMessage flat;
 	status_t ret = flat.Unflatten((char *)buffer);
+	delete fProgress;
 	fProgress = NULL;
 	
 	if (ret == B_OK) {
@@ -184,18 +182,9 @@ const char *Enclosure::UUID(void) const {
 const char *Enclosure::LocalUUID(void) const {
 	if (fLocalUUID.Length() == 0) {
 		BString localID = "";
-		uchar hash[SHA_DIGEST_LENGTH];
-		char buffer[3];
 		
 		localID << fURL << "#" << fMIME << "#" << fDescription << "#" << fSize;
-
-		SHA1((const uchar *)localID.String(), localID.Length(), hash);
-
-		for (int32 i = 0; i < SHA_DIGEST_LENGTH; i++) {
-			snprintf(buffer, sizeof(buffer), "%02x", hash[i]);
-			
-			fLocalUUID << buffer;
-		};
+		Private::SHA1ToHex(localID.String(), localID.Length(), &fLocalUUID);
 	};
 	
 	return fLocalUUID.String();
@@ -222,12 +211,6 @@ void Enclosure::SetState(EnclosureState state) {
 };
 
 void Enclosure::SetProgress(DownloadProgress *progress) {
-//	Deleting the old Progress causes a crash on resumed downloads
 	delete fProgress;
-	fProgress = NULL;
-	
-//	if (progress != NULL) {
-//		fProgress = new DownloadProgress(progress);
-//		fprintf(stderr, "Enclosure::SetProgress([%p]) vs [%p])\n", progress, fProgress);
-//	};
+	fProgress = progress == NULL ? NULL : new DownloadProgress(progress);
 };

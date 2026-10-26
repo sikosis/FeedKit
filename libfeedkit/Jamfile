@@ -23,6 +23,7 @@ SharedLibrary libfeedkit.so :
 	ObjectCache.cpp
 	SettingsManager.cpp
 	SettingsView.cpp
+	SHA1.cpp
 	TraceFeedHandler.cpp
 	ItemSpecification.cpp
 

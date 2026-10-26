@@ -18,19 +18,28 @@ DownloadProgress::DownloadProgress(const char *mime, time_t start, int32 size, i
 	fStart(start),
 	fEnd(end),
 	fSize(size),
-	fDownloaded(downloaded) {
+	fDownloaded(downloaded),
+	fComplete(end > 0) {
 
 	time_t now;
 	time(&now);
 	
 	int32 seconds = now - fStart;
+	if (seconds <= 0)
+		seconds = 1;
 	fSpeed = (float)downloaded / (float)seconds;
 		
 //	if (fComplete == false) fEnd = CalculateETA();
 };
 
 DownloadProgress::DownloadProgress(const DownloadProgress *copy)
-	: fMIME(copy->fMIME) {
+	: fMIME(copy->fMIME),
+	fStart(copy->fStart),
+	fEnd(copy->fEnd),
+	fSpeed(copy->fSpeed),
+	fSize(copy->fSize),
+	fDownloaded(copy->fDownloaded),
+	fComplete(copy->fComplete) {
 }
 
 DownloadProgress::DownloadProgress(void)
@@ -39,7 +48,8 @@ DownloadProgress::DownloadProgress(void)
 	fEnd(-1),
 	fSpeed(0),
 	fSize(0),
-	fDownloaded(0) {
+	fDownloaded(0),
+	fComplete(false) {
 };
 
 DownloadProgress::~DownloadProgress(void) {
@@ -79,6 +89,7 @@ status_t DownloadProgress::Unflatten(type_code /*code*/, const void *buffer, ssi
 		if (flat.FindFloat("speed", &fSpeed) != B_OK) ret = B_ERROR;
 		if (flat.FindInt32("size", &fSize) != B_OK) ret = B_ERROR;
 		if (flat.FindInt32("downloaded", &fDownloaded) != B_OK) ret = B_ERROR;
+		fComplete = fEnd > 0;
 		
 //		if ((ret == B_OK) && (fComplete == false)) fEnd = CalculateETA();
 	};
@@ -141,7 +152,11 @@ int32 DownloadProgress::AmountDownloaded(void) const {
 };
 
 float DownloadProgress::PercentageComplete(void) const {
-	return (float)fDownloaded / (float)fSize;
+	return fSize > 0 ? (float)fDownloaded / (float)fSize : 0;
+};
+
+bool DownloadProgress::IsComplete(void) const {
+	return fComplete;
 };
 
 //#pragma mark Private

@@ -18,22 +18,12 @@ OPTIONAL_SUBDIRS = \
 	Preflet \
 	Clients
 
-SUBDIRS = $(CORE_SUBDIRS)
-ifneq ($(wildcard /boot/develop/headers/cppunit/TestSuite.h), )
-  HAVE_CPPUNIT:=1
-endif
-ifneq ($(wildcard /boot/home/config/include/cppunit/TestSuite.h), )
-  HAVE_CPPUNIT:=1
-endif
-
-ifeq ($(HAVE_CPPUNIT), 1)
-	SUBDIRS += Tests
-endif
+SUBDIRS = $(CORE_SUBDIRS) Tests
 
 
 FEEDKIT_HEADERS=$(addprefix /boot/home/config/include/, $(wildcard libfeedkit/*.h))
 
-.PHONY: default clean test smoke integration optional install dist common
+.PHONY: default clean test unit smoke integration optional install dist common
 
 default:
 	$(MAKE) -C libfeedkit -f makefile $@ || exit 1;
@@ -54,7 +44,10 @@ smoke: default
 integration: default
 	./scripts/integration-test.sh
 
-test: smoke integration
+unit: default
+	$(MAKE) -C Tests -f makefile test
+
+test: unit smoke integration
 
 clean:
 	$(MAKE) -C libfeedkit -f makefile clean

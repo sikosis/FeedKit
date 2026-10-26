@@ -10,7 +10,8 @@ architecture on x86_gcc2 hybrid installations.
 > complete. The default core target now builds successfully on R1/beta6
 > x86_64, and the native startup/parser-loading/shutdown smoke test passes.
 > The bounded local RSS/Atom registration-and-refresh integration test also
-> passes natively on beta6. Automated unit tests are not yet restored.
+> passes natively on beta6. A dependency-free native unit suite now covers
+> stable UUID fixtures, model serialization, and download progress state.
 
 See [DESIGN.md](DESIGN.md) for the full compatibility audit, technical
 findings, constraints, and acceptance criteria.
@@ -40,8 +41,8 @@ findings, constraints, and acceptance criteria.
 | R1/beta6 compatibility audit | Complete — 25 October 2026 | Audited the active Jam build, legacy makefiles, core library, server, parsers, clients, preflet, and tests against the beta6 SDK and package ecosystem. |
 | Restoration design | Complete — 25 October 2026 | Documented build blockers, correctness defects, dependency/API changes, compatibility constraints, staged goals, and release acceptance criteria in `DESIGN.md`. |
 | Native beta6 baseline | Complete — 25 October 2026 | User-confirmed successful default build of `libfeedkit.so`, `feed_server`, and the RSS/Atom parser add-ons on R1/beta6 x86_64. Build repairs covered malformed makefiles, dependencies, compiler/linker flags, fixed-width types, protected server access, modern curl callbacks, and repository-local linking. |
-| Core safety and compatibility | In progress — 25 October 2026 | Initial 64-bit serialization and ownership-adjacent fixes landed during build restoration. Integration testing exposed and fixed null Atom image handling and one-byte SHA-1 UUID formatting overflows across feeds, channels, items, content, and enclosures without changing UUID values. UUID fixtures, round-trip tests, and the remaining correctness audit are next. |
-| Network and parser modernization | In progress — 26 October 2026 | Native beta6 smoke and successful RSS/Atom registration-refresh paths pass. Feed downloads now use atomically created, unlink-on-open files in Haiku's system temporary directory instead of `tmpnam()`, and release temporary storage immediately after success or failure. The integration test now includes a missing-feed download failure; native confirmation and broader HTTP, TLS, cancellation, resume, and write-failure coverage remain. |
+| Core safety and compatibility | In progress — 26 October 2026 | Initial 64-bit serialization and ownership-adjacent fixes landed during build restoration. Integration testing exposed and fixed null Atom image handling and one-byte SHA-1 UUID formatting overflows without changing UUID values. A dependency-free native suite now locks representative Feed, Channel, Item, Content, and Enclosure UUIDs, exercises model flatten/unflatten round trips, and verifies copied and serialized download progress. Native confirmation and the remaining ownership and pointer-lifetime audit are next. |
+| Network and parser modernization | In progress — 26 October 2026 | Native beta6 smoke and integration tests pass, including RSS/Atom registration and forced refresh, parser discovery, clean shutdown, and safe handling of a missing feed. Feed downloads now use atomically created, unlink-on-open files in Haiku's system temporary directory instead of `tmpnam()`, and release temporary storage immediately after success or failure. Broader HTTP, TLS, cancellation, resume, and write-failure coverage remain. |
 | Package and lifecycle integration | Planned | Add package-aware paths and an HPKG workflow, then verify installation, discovery, startup, persistence, and removal. |
 | Optional client ports | Planned | Port clients independently after the core is stable; replace obsolete NetPositive and InfoPopper integrations where necessary. |
 | Beta6 release validation | Planned | Pass builds, tests, integration checks, and HPKG installation on x86_64 and the modern secondary `x86` architecture. |
@@ -100,8 +101,8 @@ make
 
 The native startup/parser-loading/shutdown smoke test and local RSS/Atom
 registration-and-refresh integration test are verified on R1/beta6 x86_64.
-Automated unit tests, packaging, and the secondary `x86` architecture are not
-yet validated.
+The restored unit suite, packaging, and the secondary `x86` architecture are
+not yet validated.
 
 ### Runtime smoke test
 
@@ -122,8 +123,13 @@ fixture subscriptions into the user's feed store:
 make integration
 ```
 
-`make test` runs both `make smoke` and `make integration`. It will also run the
-automated unit suite once that suite has been restored for beta6.
+The focused model suite can be built and run independently with:
+
+```sh
+make unit
+```
+
+`make test` runs the unit, smoke, and integration suites.
 
 Captured server output is written to `build/smoke-test.log` or
 `build/integration-test.log` when a check fails.

@@ -3,6 +3,7 @@
 #include "Content.h"
 #include "Enclosure.h"
 #include "Feed.h"
+#include "SHA1.h"
 
 #include <File.h>
 #include <Message.h>
@@ -10,8 +11,6 @@
 
 #include <parsedate.h>
 
-#include <openssl/sha.h>
-#include <stdio.h>
 
 //#pragma mark Namespace import
 
@@ -429,8 +428,6 @@ const char *Item::UUID(void) const{
 const char *Item::LocalUUID(void) const {
 	if (fLocalUUID.Length() == 0) {
 		BString localID = "";
-		uchar hash[SHA_DIGEST_LENGTH];
-		char buffer[3];
 		
 		localID << fAuthor << "/" << fTitle << "#";
 		if (fGUID.Length() > 0) {
@@ -439,13 +436,7 @@ const char *Item::LocalUUID(void) const {
 			localID << fLink;
 		};
 		
-		SHA1((const uchar *)localID.String(), localID.Length(), hash);
-
-		for (int32 i = 0; i < SHA_DIGEST_LENGTH; i++) {
-			snprintf(buffer, sizeof(buffer), "%02x", hash[i]);
-			
-			fLocalUUID << buffer;
-		};
+		Private::SHA1ToHex(localID.String(), localID.Length(), &fLocalUUID);
 
 	};
 	
