@@ -77,11 +77,16 @@ float RSSParser::HandlesFeed(const char *url, const char *feed, int32 length) {
 		if (pathCtxt != NULL) {
 			xmlXPathObjectPtr root = xmlXPathEvalExpression((const xmlChar *)"/rss/channel", pathCtxt);
 			
-			if (root != NULL) ability = 1.0f;
+			if (root != NULL && root->nodesetval != NULL
+				&& root->nodesetval->nodeNr > 0)
+				ability = 1.0f;
 			
-			xmlXPathFreeObject(root);
+			if (root != NULL)
+				xmlXPathFreeObject(root);
 		};
-		xmlXPathFreeContext(pathCtxt);
+		if (pathCtxt != NULL)
+			xmlXPathFreeContext(pathCtxt);
+		xmlFreeDoc(doc);
 	};
 
 	return ability;
@@ -97,31 +102,32 @@ Feed *RSSParser::ParseFeed(const char *url, const char *data, int32 length) {
 	if (pathCtxt != NULL) {
 		xmlXPathObjectPtr root = xmlXPathEvalExpression((const xmlChar *)"/rss/channel", pathCtxt);
 	
-		if (root != NULL) {			
+		if (root != NULL && root->nodesetval != NULL
+			&& root->nodesetval->nodeNr > 0) {
 			xmlNodeSetPtr channels = root->nodesetval;
 			
-			if (channels != NULL) {
-				feed = new Feed(url);
-				channel = new Channel();
-				feed->AddChannel(channel);
+			feed = new Feed(url);
+			channel = new Channel();
+			feed->AddChannel(channel);
 
-				for (int32 i = 0; i < channels->nodeNr; i++) {
-					xmlNode *n = channels->nodeTab[i]->children;
+			for (int32 i = 0; i < channels->nodeNr; i++) {
+				xmlNode *n = channels->nodeTab[i]->children;
 
-					while (n != NULL) {
-						if (n->type == XML_ELEMENT_NODE) {
-							ExtractChannelNodeDetails(channel, n);
-						};
-						n = n->next;
+				while (n != NULL) {
+					if (n->type == XML_ELEMENT_NODE) {
+						ExtractChannelNodeDetails(channel, n);
 					};
+					n = n->next;
 				};
 			};
-			
-			xmlXPathFreeObject(root);
 		};
+		if (root != NULL)
+			xmlXPathFreeObject(root);
 	};
 
-	xmlXPathFreeContext(pathCtxt);
+	if (pathCtxt != NULL)
+		xmlXPathFreeContext(pathCtxt);
+	xmlFreeDoc(doc);
 	
 	return feed;
 };
@@ -139,6 +145,8 @@ const char *RSSParser::Description(void) {
 BString RSSParser::NodeContents(xmlNode *node) {
 	BString temp = "";
 	xmlBuffer *buff = xmlBufferCreate();
+	if (buff == NULL)
+		return temp;
 
 	xmlNodeBufGetContent(buff, node);
 	temp.SetTo((const char *)xmlBufferContent(buff), xmlBufferLength(buff));
@@ -244,7 +252,7 @@ void RSSParser::ExtractItemNodeDetails(Item *item, xmlNode *node) {
 	
 		if (node->type == XML_ELEMENT_NODE) {
 			if (xmlStrcmp(node->name, (const xmlChar *)"title") == 0) {
-				item->Title(strdup(NodeContents(node).String()));
+				item->Title(NodeContents(node).String());
 			};
 			if (xmlStrcmp(node->name, (const xmlChar *)"description") == 0) {
 				Content *content = new Content();
@@ -258,11 +266,11 @@ void RSSParser::ExtractItemNodeDetails(Item *item, xmlNode *node) {
 			};
 			if (xmlStrcmp(node->name, (const xmlChar *)"guid") == 0) {
 				item->GUID(NodeContents(node).String());
-				bool perma = false;
 				xmlChar *permaStr = xmlGetProp(node, (const xmlChar *)"isPermaLink");
-				if (xmlStrcmp(permaStr, (const xmlChar *)"true") == 0) perma = true;
-				
+				bool perma = permaStr != NULL
+					&& xmlStrcasecmp(permaStr, (const xmlChar *)"true") == 0;
 				item->IsGUIDPermaLink(perma);
+				xmlFree(permaStr);
 			};
 			if (xmlStrcmp(node->name, (const xmlChar *)"author") == 0) {
 				item->Author(NodeContents(node).String());
@@ -277,15 +285,24 @@ void RSSParser::ExtractItemNodeDetails(Item *item, xmlNode *node) {
 				item->Comments(NodeContents(node).String());
 			};
 			if (xmlStrcmp(node->name, (const xmlChar *)"enclosure") == 0) {
-				const char *url = (const char *)xmlGetProp(node, (const xmlChar *)"url");
-				const char *mime = (const char *)xmlGetProp(node, (const xmlChar *)"type");
-				int32 size = atol((const char *)xmlGetProp(node, (const xmlChar *)"length"));
-				
-				item->AddEnclosure(new Enclosure((char *)url, (char *)mime, NULL, size));
+				xmlChar *url = xmlGetProp(node, (const xmlChar *)"url");
+				xmlChar *mime = xmlGetProp(node, (const xmlChar *)"type");
+				xmlChar *length = xmlGetProp(node, (const xmlChar *)"length");
+				int32 enclosureSize = length == NULL ? -1
+					: atol((const char *)length);
+				if (url != NULL)
+					item->AddEnclosure(new Enclosure((const char *)url,
+						(const char *)mime, NULL, enclosureSize));
+				xmlFree(url);
+				xmlFree(mime);
+				xmlFree(length);
 			};
 			if (xmlStrcmp(node->name, (const xmlChar *)"source") == 0) {
-				item->SourceURL((const char *)xmlGetProp(node, (const xmlChar *)"url"));
+				xmlChar *sourceURL = xmlGetProp(node, (const xmlChar *)"url");
+				if (sourceURL != NULL)
+					item->SourceURL((const char *)sourceURL);
 				item->SourceTitle(NodeContents(node).String());
+				xmlFree(sourceURL);
 			};
 			if (xmlStrcmp(node->name, (const xmlChar *)"content") == 0) {
 				xmlNs *ns = node->ns;
@@ -314,13 +331,21 @@ void RSSParser::ExtractItemNodeDetails(Item *item, xmlNode *node) {
 };
 
 Enclosure *RSSParser::ExtractMediaContent(xmlNode *node) {
-	const char *url = (const char *)xmlGetProp(node, (const xmlChar *)"url");
-	const char *mime = (const char *)xmlGetProp(node, (const xmlChar *)"type");
+	if (node == NULL || node->type != XML_ELEMENT_NODE)
+		return NULL;
+	xmlChar *url = xmlGetProp(node, (const xmlChar *)"url");
+	xmlChar *mime = xmlGetProp(node, (const xmlChar *)"type");
 	const char *desc = NULL;
-	const char *sizeStr = (const char *)xmlGetProp(node, (const xmlChar *)"fileSize");
+	xmlChar *sizeStr = xmlGetProp(node, (const xmlChar *)"fileSize");
 	int32 size = -1;
-	if ((mime != NULL) && (strlen(mime) == 0)) mime = NULL;
-	if ((sizeStr != NULL) && (strlen(sizeStr) > 0)) size = atol(sizeStr);
+	if (sizeStr != NULL && xmlStrlen(sizeStr) > 0)
+		size = atol((const char *)sizeStr);
 
-	return new Enclosure(url, mime, desc, size);
+	Enclosure *enclosure = url == NULL ? NULL : new Enclosure((const char *)url,
+		mime != NULL && xmlStrlen(mime) > 0 ? (const char *)mime : NULL,
+		desc, size);
+	xmlFree(url);
+	xmlFree(mime);
+	xmlFree(sizeStr);
+	return enclosure;
 };

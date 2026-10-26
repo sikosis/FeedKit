@@ -81,8 +81,7 @@ float AtomParser::HandlesFeed(const char */*url*/, const char *feed, int32 lengt
 			xmlXPathObjectPtr root = xmlXPathEvalExpression((const xmlChar *)"/", pathCtxt);
 			if (root != NULL) {
 				xmlNodeSetPtr nodes = root->nodesetval;
-							
-				for (int32 i = 0; i < nodes->nodeNr; i++) {
+				for (int32 i = 0; nodes != NULL && i < nodes->nodeNr; i++) {
 					xmlNode *node = nodes->nodeTab[i]->children;
 					
 					while (node != NULL) {
@@ -96,17 +95,17 @@ float AtomParser::HandlesFeed(const char */*url*/, const char *feed, int32 lengt
 						node = node->next;
 					};
 				};
+				xmlXPathFreeObject(root);
 			};
+			xmlXPathFreeContext(pathCtxt);
 		};
+		xmlFreeDoc(doc);
 	};
 
 	return ability;
 };
 
 Feed *AtomParser::ParseFeed(const char *url, const char *data, int32 length) {
-	fprintf(stderr, "AtomParser::ParseFeed(%s, %*.*s, %i)\n", url, (int)min_c(length, 20), (int)min_c(length, 20),
-		data, length);
-
 	Feed *feed = NULL;
 	xmlDocPtr doc = xmlParseMemory(data, length);
 	if (doc == NULL) return feed;
@@ -145,7 +144,7 @@ Feed *AtomParser::ParseFeed(const char *url, const char *data, int32 length) {
 		if (root != NULL) {
 			xmlNodeSetPtr nodes = root->nodesetval;
 						
-			for (int32 i = 0; i < nodes->nodeNr; i++) {
+			for (int32 i = 0; nodes != NULL && i < nodes->nodeNr; i++) {
 				xmlNode *node = nodes->nodeTab[i]->children;
 				
 				while (node != NULL) {
@@ -167,10 +166,13 @@ Feed *AtomParser::ParseFeed(const char *url, const char *data, int32 length) {
 			};
 		};
 
-		xmlXPathFreeObject(root);
+		if (root != NULL)
+			xmlXPathFreeObject(root);
 		delete feedPref;
 	};
-	xmlXPathFreeContext(pathCtxt);
+	if (pathCtxt != NULL)
+		xmlXPathFreeContext(pathCtxt);
+	xmlFreeDoc(doc);
 	
 	return feed;
 };
@@ -196,6 +198,10 @@ BView *AtomParser::SettingsView(BMessage /*settings*/) {
 const char *AtomParser::NodeContents(xmlNode *node) {
 	static BString temp = "";
 	xmlBuffer *buff = xmlBufferCreate();
+	if (buff == NULL) {
+		temp = "";
+		return temp.String();
+	}
 
 	xmlNodeBufGetContent(buff, node);
 	temp.SetTo((const char *)xmlBufferContent(buff), xmlBufferLength(buff));
@@ -235,7 +241,10 @@ status_t AtomParser::ParseAtomFeed(Channel *channel, xmlNode *parent, bool conve
 				channel->Webmaster(author);
 			};
 			if (NODE_NAME_EQ(node->name, "category")) {
-				channel->Category((const char *)xmlGetProp(node, (const xmlChar *)"term"));
+				xmlChar *term = xmlGetProp(node, (const xmlChar *)"term");
+				if (term != NULL)
+					channel->Category((const char *)term);
+				xmlFree(term);
 			};
 			if (NODE_NAME_EQ(node->name, "generator")) {
 				channel->Generator(NodeContents(node));
@@ -303,22 +312,24 @@ status_t AtomParser::ParseAtomEntry(Channel *channel, Item *item, xmlNode *node,
 			if (NODE_NAME_EQ(node->name, "category")) category << NodeContents(node) << "/";
 
 			if (NODE_NAME_EQ(node->name, "content")) {
-				const char *type = (const char *)xmlGetProp(node, (const xmlChar *)"type");			
+				xmlChar *type = xmlGetProp(node, (const xmlChar *)"type");
 				Content *content = new Content();
-				content->MIMEType(type == NULL ? "" : type);
+				content->MIMEType(type == NULL ? "" : (const char *)type);
 				content->Text(NodeContents(node));
 				
 				item->AddContent(content);
+				xmlFree(type);
 			};
 
 			if (NODE_NAME_EQ(node->name, "title")) item->Title(NodeContents(node));
 
 			if (NODE_NAME_EQ(node->name, "summary")) {
-				const char *type = (const char *)xmlGetProp(node, (const xmlChar *)"type");			
+				xmlChar *type = xmlGetProp(node, (const xmlChar *)"type");
 				Content *content = new Content();
-				content->MIMEType(type == NULL ? "" : type);
+				content->MIMEType(type == NULL ? "" : (const char *)type);
 				content->Text(NodeContents(node));
 				item->AddContent(content);
+				xmlFree(type);
 			};
 			
 			if (NODE_NAME_EQ(node->name, "id")) {
@@ -327,34 +338,51 @@ status_t AtomParser::ParseAtomEntry(Channel *channel, Item *item, xmlNode *node,
 			};
 
 			if (NODE_NAME_EQ(node->name, "link")) {
-				const char *rel = (const char *)xmlGetProp(node, (const xmlChar *)"rel");
-				const char *href = (const char *)xmlGetProp(node, (const xmlChar *)"href");
-				const char *title = (const char *)xmlGetProp(node, (const xmlChar *)"title");
+				xmlChar *rel = xmlGetProp(node, (const xmlChar *)"rel");
+				xmlChar *href = xmlGetProp(node, (const xmlChar *)"href");
+				xmlChar *title = xmlGetProp(node, (const xmlChar *)"title");
 
-				if (strcmp(rel, "alternate") == 0) item->Link(href);
-				if (strcmp(rel, "self") == 0) {
-					item->SourceURL(href);
-					item->SourceTitle(title);
+				if (rel != NULL && href != NULL
+					&& xmlStrcmp(rel, (const xmlChar *)"alternate") == 0)
+					item->Link((const char *)href);
+				if (rel != NULL && href != NULL
+					&& xmlStrcmp(rel, (const xmlChar *)"self") == 0) {
+					item->SourceURL((const char *)href);
+					if (title != NULL)
+						item->SourceTitle((const char *)title);
 				};
-				if (strcmp(rel, "enclosure") == 0) {
-					const char *mime = (const char *)xmlGetProp(node, (const xmlChar *)"type");
-					const char *lenStr = (const char *)xmlGetProp(node, (const xmlChar *)"length");
+				if (rel != NULL && href != NULL
+					&& xmlStrcmp(rel, (const xmlChar *)"enclosure") == 0) {
+					xmlChar *mime = xmlGetProp(node, (const xmlChar *)"type");
+					xmlChar *lenStr = xmlGetProp(node, (const xmlChar *)"length");
 					int32 size = -1;
-					if ((lenStr) && (strlen(lenStr) > 0)) size = atol(lenStr);
+					if (lenStr != NULL && xmlStrlen(lenStr) > 0)
+						size = atol((const char *)lenStr);
 					
-					Enclosure *enc = new Enclosure(href, mime, title, size);
+					Enclosure *enc = new Enclosure((const char *)href,
+						(const char *)mime, (const char *)title, size);
 					item->AddEnclosure(enc);
+					xmlFree(mime);
+					xmlFree(lenStr);
 				};
 				// XXX - Not really correct, but Blogger.com does it
-				if ((convertLinks) && strcmp(rel, "related") == 0) {
-					const char *mime = (const char *)xmlGetProp(node, (const xmlChar *)"type");
-					const char *lenStr = (const char *)xmlGetProp(node, (const xmlChar *)"length");
+				if (convertLinks && rel != NULL && href != NULL
+					&& xmlStrcmp(rel, (const xmlChar *)"related") == 0) {
+					xmlChar *mime = xmlGetProp(node, (const xmlChar *)"type");
+					xmlChar *lenStr = xmlGetProp(node, (const xmlChar *)"length");
 					int32 size = -1;
-					if ((lenStr) && (strlen(lenStr) > 0)) size = atol(lenStr);
+					if (lenStr != NULL && xmlStrlen(lenStr) > 0)
+						size = atol((const char *)lenStr);
 					
-					Enclosure *enc = new Enclosure(href, mime, title, size);
+					Enclosure *enc = new Enclosure((const char *)href,
+						(const char *)mime, (const char *)title, size);
 					item->AddEnclosure(enc);
+					xmlFree(mime);
+					xmlFree(lenStr);
 				};
+				xmlFree(rel);
+				xmlFree(href);
+				xmlFree(title);
 			};
 
 			if (NODE_NAME_EQ(node->name, "updated")) item->Date(parsedate(NodeContents(node), -1));

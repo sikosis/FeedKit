@@ -43,7 +43,7 @@ findings, constraints, and acceptance criteria.
 | Restoration design | Complete — 25 October 2026 | Documented build blockers, correctness defects, dependency/API changes, compatibility constraints, staged goals, and release acceptance criteria in `DESIGN.md`. |
 | Native beta6 baseline | Complete — 25 October 2026 | User-confirmed successful default build of `libfeedkit.so`, `feed_server`, and the RSS/Atom parser add-ons on R1/beta6 x86_64. Build repairs covered malformed makefiles, dependencies, compiler/linker flags, fixed-width types, protected server access, modern curl callbacks, and repository-local linking. |
 | Core safety and compatibility | Complete — 26 October 2026 | The dependency-free suite passes all 113 checks natively on beta6. It covers stable UUIDs, serialization, download progress, listener safety, parent-owned model trees, deep copy and assignment, replacement-safe unflattening, independent refresh merges, download-request ownership, and complete server teardown. Native smoke and integration runs also pass. |
-| Network and parser modernization | In progress — 26 October 2026 | Native beta6 smoke and integration tests pass, including RSS/Atom registration and forced refresh, parser discovery, clean shutdown, and safe handling of a missing feed. Downloads use secure temporary files, modern 64-bit curl transfer state, explicit TLS and redirect policy, retained curl/HTTP diagnostics, correct output truncation, and resume-aware sizes. The native 47-check FileRequest baseline passes local-file and offline loopback-HTTP coverage, including success, cancellation, missing resources, file replacement, resume integrity, redirects, content metadata, 404 diagnostics, and protocol rejection. A deterministic split-response fixture now covers partial output and retained Haiku/libcurl write errors; native verification is next. |
+| Network and parser modernization | In progress — 26 October 2026 | Native beta6 smoke and integration tests pass, including RSS/Atom registration and forced refresh, parser discovery, clean shutdown, and safe handling of a missing feed. The native 55-check FileRequest suite covers local files and offline loopback HTTP, including cancellation, resume, redirects, diagnostics, protocol rejection, and partial-write failures. RSS and Atom now reject malformed XML safely, tolerate absent optional attributes, and release libxml documents and properties. A new 35-check parser add-on suite covers valid, malformed, and incomplete feeds; native verification is next. |
 | Package and lifecycle integration | Planned | Add package-aware paths and an HPKG workflow, then verify installation, discovery, startup, persistence, and removal. |
 | Optional client ports | Planned | Port clients independently after the core is stable; replace obsolete NetPositive and InfoPopper integrations where necessary. |
 | Beta6 release validation | Planned | Pass builds, tests, integration checks, and HPKG installation on x86_64 and the modern secondary `x86` architecture. |
@@ -123,7 +123,8 @@ fixture subscriptions into the user's feed store:
 make integration
 ```
 
-The focused model and FileRequest suites can be built and run with:
+The focused model, FileRequest, and parser add-on suites can be built and run
+with:
 
 ```sh
 make unit
@@ -132,7 +133,9 @@ make unit
 `make test` runs both focused suites followed by the smoke and integration
 suites. The model executable remains dependency-free; the FileRequest
 executable links against the same curl dependency as the server and uses an
-in-process loopback HTTP fixture, so it does not require internet access.
+in-process loopback HTTP fixture, so it does not require internet access. The
+parser executable loads the built RSS and Atom add-ons directly and uses only
+repository-owned in-memory and local fixtures.
 
 Captured server output is written to `build/smoke-test.log` or
 `build/integration-test.log` when a check fails.
