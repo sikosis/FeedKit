@@ -17,13 +17,15 @@
 
 class RequestHandlerInfo {
 	public:
-							RequestHandlerInfo(FileRequestHandler *handler, void *data)
+							RequestHandlerInfo(FileRequestHandler *handler, void *data,
+								bool takeOwnership)
 								: fHandler(handler),
-								fData(data) {
+								fData(data),
+								fTakeOwnership(takeOwnership) {
 							};
 							~RequestHandlerInfo(void) {
-								printf("~RequestHandlerInfo()\n");
-								delete fHandler;
+								if (fTakeOwnership)
+									delete fHandler;
 							};
 		void				DownloadStarted(FileRequest *request) {
 								fHandler->DownloadStarted(request, fData);
@@ -38,6 +40,7 @@ class RequestHandlerInfo {
 	private:
 		FileRequestHandler	*fHandler;
 		void				*fData;
+		bool				fTakeOwnership;
 };
 
 
@@ -114,8 +117,9 @@ FileRequest::~FileRequest(void) {
 
 //pragma mark Public
 
-void FileRequest::AddHandler(FileRequestHandler *handler, void *data) {
-	fHandler.push_back(new RequestHandlerInfo(handler, data));
+void FileRequest::AddHandler(FileRequestHandler *handler, void *data,
+	bool takeOwnership) {
+	fHandler.push_back(new RequestHandlerInfo(handler, data, takeOwnership));
 };
 
 status_t FileRequest::Start(void) {

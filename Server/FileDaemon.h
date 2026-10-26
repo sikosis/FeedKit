@@ -4,6 +4,7 @@
 #include <Looper.h>
 #include <OS.h>
 
+#include <atomic>
 #include <map>
 #include <vector>
 
@@ -30,6 +31,7 @@ class FileDaemon : public BLooper, public FileRequestHandler {
 		virtual void		DownloadStarted(FileRequest *request, void *data);
 	
 		// Public 
+		// Takes ownership of every non-NULL argument only when it succeeds.
 		status_t			AddRequest(FileRequest *request, int32 priority = 0,
 								BMessenger *target = NULL, BMessage *start = NULL,
 								BMessage *finish = NULL, BMessage *error = NULL,
@@ -44,7 +46,7 @@ class FileDaemon : public BLooper, public FileRequestHandler {
 	
 		uint32				fMaxThreads;
 		BMessageRunner		*fThreadPoolRunner;
-		bool				fShuttingDown;
+		std::atomic<bool>	fShuttingDown;
 
 		info_t				fRequests;
 		thread_t			fThreads;

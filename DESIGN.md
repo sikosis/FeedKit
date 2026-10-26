@@ -3,9 +3,11 @@
 ## Status
 
 This document records the compatibility audit performed against Haiku
-R1/beta6 and proposes a staged plan for restoring FeedKit. It is a design and
-implementation plan; it does not claim that FeedKit currently builds or runs
-on beta6.
+R1/beta6 and the staged plan for restoring FeedKit. The original audit
+baseline did not build or run natively. As of 26 October 2026, the core
+library, server, RSS and Atom parser add-ons build on beta6 x86_64, and the
+90-check unit suite plus smoke and integration tests pass. The remaining
+stages are tracked in `README.md`.
 
 The audit used:
 
@@ -15,18 +17,17 @@ The audit used:
 - static inspection of FeedKit's active Jam build, legacy makefiles, library,
   server, parsers, clients, preflet, and tests.
 
-A native build was not performed because the audit host was macOS and did not
-have a Haiku cross-toolchain. All build and runtime findings must therefore be
-confirmed on a clean beta6 installation or VM as the first implementation
-step.
+The original audit host was macOS and did not have a Haiku cross-toolchain.
+Subsequent build and runtime findings have been confirmed on a native beta6
+x86_64 installation as recorded in `README.md`.
 
 ## Compatibility verdict
 
-FeedKit is not currently compatible with Haiku R1/beta6 as a complete,
-buildable product. The port is nevertheless feasible without redesigning its
-fundamental architecture. The principal Haiku APIs used by FeedKit still
-exist, including `BApplication`, `BMessage`, `BMessenger`, `BFlattenable`,
-Storage Kit queries, filesystem attributes, node monitoring, and add-ons.
+FeedKit is not yet restored as a complete, packaged R1/beta6 product, but its
+core is now buildable and testable without redesigning the fundamental
+architecture. The principal Haiku APIs used by FeedKit still exist, including
+`BApplication`, `BMessage`, `BMessenger`, `BFlattenable`, Storage Kit queries,
+filesystem attributes, node monitoring, and add-ons.
 
 The immediate blockers are:
 

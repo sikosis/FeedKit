@@ -74,6 +74,8 @@ grep -F 'FeedServer integration test: expected download failure validated' \
 	"$log" >/dev/null 2>&1 || fail "the missing-feed failure path was not validated"
 grep -F 'FeedServer integration test passed: RSS and Atom registered and refreshed' \
 	"$log" >/dev/null 2>&1 || fail "the server did not report integration success"
+grep -F 'FileDaemon lifecycle: requests released' "$log" >/dev/null 2>&1 \
+	|| fail "the downloader did not release all requests"
 grep -F 'FeedServer lifecycle: services stopped' "$log" >/dev/null 2>&1 \
 	|| fail "the server did not release its runtime services"
 

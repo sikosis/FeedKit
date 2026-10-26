@@ -51,6 +51,34 @@ using namespace FeedKit::Settings;
 typedef std::map<BString, Channel *> titlechannel_t;
 typedef std::map<BString, Channel *> channel_cache_t;
 
+class DownloadTerminalReply {
+	public:
+		explicit DownloadTerminalReply(BMessage *message)
+			: fMessage(message) {
+		}
+
+		~DownloadTerminalReply() {
+			BMessage reply(B_REPLY);
+			fMessage->SendReply(&reply);
+		}
+
+	private:
+		BMessage *fMessage;
+};
+
+static void
+DeleteUnqueuedRequest(FileRequest *request, BMessenger *target,
+	BMessage *start, BMessage *finish, BMessage *error,
+	BMessage *cancel = NULL)
+{
+	delete request;
+	delete target;
+	delete start;
+	delete finish;
+	delete error;
+	delete cancel;
+}
+
 //#pragma mark Constants
 
 const char *kSettingsDir = "feed_kit";
@@ -632,7 +660,13 @@ status_t FeedServer::SyndicateURL(const char *url, const char *name) {
 	error->AddString("name", name);
 	error->AddPointer("filerequest", request);
 	
-	return fFeedDaemon->AddRequest(request, 0, new BMessenger(this), start, complete, error);
+	BMessenger *target = new BMessenger(this);
+	status_t result = fFeedDaemon->AddRequest(request, 0, target, start,
+		complete, error);
+	if (result != B_OK)
+		DeleteUnqueuedRequest(request, target, start, complete, error);
+
+	return result;
 };
 
 
@@ -1078,8 +1112,10 @@ status_t FeedServer::DownloadEnclosure(FeedKit::Feed *feed, FeedKit::Channel *ch
 	
 	request->AddHandler(new EnclosureRequestHandler(this), enclosure);
 	
-	if (fFeedDaemon->AddRequest(request, 0,  new BMessenger(this), start, complete, error, cancel) != B_OK) {
-		delete request;
+	BMessenger *target = new BMessenger(this);
+	if (fFeedDaemon->AddRequest(request, 0, target, start, complete, error,
+		cancel) != B_OK) {
+		DeleteUnqueuedRequest(request, target, start, complete, error, cancel);
 
 //		XXX		
 //		ErrorDetails error(ErrorCode::UnableToStartDownload, "Error starting the download");
@@ -1366,6 +1402,7 @@ status_t FeedServer::HandleFeedDownloadStart(BMessage *msg) {
 };
 
 status_t FeedServer::HandleFeedDownloadError(BMessage *msg) {
+	DownloadTerminalReply terminalReply(msg);
 	FileRequest *request = NULL;
 	if (msg->FindPointer("filerequest", reinterpret_cast<void **>(&request)) != B_OK) return B_ERROR;
 	bool expectedFailure = fIntegrationTest && fIntegrationFailureRequested
@@ -1413,6 +1450,7 @@ status_t FeedServer::HandleFeedDownloadError(BMessage *msg) {
 };
 
 status_t FeedServer::HandleFeedDownloadFinish(BMessage *msg) {
+	DownloadTerminalReply terminalReply(msg);
 	const char *url = NULL;
 	const char *name = NULL;
 	FileRequest *request = NULL;
@@ -1578,7 +1616,12 @@ status_t FeedServer::HandleFeedDownloadFinish(BMessage *msg) {
 			error->AddString("name", image->Description());
 			error->AddPointer("filerequest", imgRequest);
 			
-			fFeedDaemon->AddRequest(imgRequest, 0, new BMessenger(this), start, complete, error);
+			BMessenger *target = new BMessenger(this);
+			if (fFeedDaemon->AddRequest(imgRequest, 0, target, start,
+				complete, error) != B_OK) {
+				DeleteUnqueuedRequest(imgRequest, target, start, complete,
+					error);
+			}
 		};
 	};
 	
@@ -1861,6 +1904,7 @@ status_t FeedServer::HandleEnclosureDownloadStart(BMessage *msg) {
 };
 
 status_t FeedServer::HandleEnclosureDownloadFinish(BMessage *msg) {
+	DownloadTerminalReply terminalReply(msg);
 	const char *feedUUID = NULL;
 	const char *chanUUID = NULL;
 	const char *itemUUID = NULL;
@@ -1878,7 +1922,7 @@ status_t FeedServer::HandleEnclosureDownloadFinish(BMessage *msg) {
 	feed = GetFeed(feedUUID);
 	enc = GetEnclosure(encUUID);
 
-	ASSERT_WITH_MESSAGE(enc != NULL, "Enclosure was NULL!");
+	if (feed == NULL || enc == NULL) return B_NAME_NOT_FOUND;
 
 	enc->SetLocalRef(ref);
 	enc->SetState(Completed);
@@ -1902,6 +1946,7 @@ status_t FeedServer::HandleEnclosureDownloadFinish(BMessage *msg) {
 };
 
 status_t FeedServer::HandleEnclosureDownloadError(BMessage *msg) {
+	DownloadTerminalReply terminalReply(msg);
 	printf("Enclosure download error\n");
 	msg->PrintToStream();
 
@@ -1909,6 +1954,7 @@ status_t FeedServer::HandleEnclosureDownloadError(BMessage *msg) {
 };
 
 status_t FeedServer::HandleEnclosureDownloadCancelled(BMessage *msg) {
+	DownloadTerminalReply terminalReply(msg);
 	const char *feedUUID = NULL;
 	const char *chanUUID = NULL;
 	const char *itemUUID = NULL;
@@ -1929,7 +1975,7 @@ msg->PrintToStream();
 	feed = GetFeed(feedUUID);
 	enc = GetEnclosure(encUUID);
 
-	ASSERT_WITH_MESSAGE(enc != NULL, "Enclosure was NULL!");
+	if (feed == NULL || enc == NULL) return B_NAME_NOT_FOUND;
 
 	enc->SetState(Cancelled);
 
@@ -2053,6 +2099,7 @@ status_t FeedServer::HandleChannelIconDownloadStart(BMessage *msg) {
 };
 
 status_t FeedServer::HandleChannelIconDownloadFinish(BMessage *msg) {
+	DownloadTerminalReply terminalReply(msg);
 	FileRequest *request = NULL;
 	Channel *channel = NULL;
 
@@ -2071,7 +2118,8 @@ status_t FeedServer::HandleChannelIconDownloadFinish(BMessage *msg) {
 };
 
 // XXX Handle
-status_t FeedServer::HandleChannelIconDownloadError(BMessage */*msg*/) {
+status_t FeedServer::HandleChannelIconDownloadError(BMessage *msg) {
+	DownloadTerminalReply terminalReply(msg);
 	return B_OK;
 };
 

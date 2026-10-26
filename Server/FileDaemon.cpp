@@ -25,6 +25,7 @@ class RequestInfo {
 		};
 	
 		~RequestInfo(void) {
+			delete request;
 			delete target;
 			delete start;
 			delete finish;
@@ -98,7 +99,7 @@ FileDaemon::~FileDaemon(void) {
 void FileDaemon::MessageReceived(BMessage *msg) {
 	switch (msg->what) {
 		case kCheckPool: {
-			if (fShuttingDown) return;
+			if (fShuttingDown.load()) return;
 
 			// A new thread will be launched if...
 			//	- There's a request and no threads
@@ -122,7 +123,7 @@ void FileDaemon::MessageReceived(BMessage *msg) {
 			thread_t::iterator tIt = fThreads.find(thread);
 			if (tIt == fThreads.end()) return;
 
-			if (fShuttingDown) {
+			if (fShuttingDown.load()) {
 				BMessage reply(B_REPLY);
 				reply.AddBool("continue", false);
 				msg->SendReply(&reply);
@@ -158,6 +159,8 @@ void FileDaemon::MessageReceived(BMessage *msg) {
 			if (tIt != fThreads.end()) tIt->second = NULL;
 			
 			delete info;
+			BMessage reply(B_REPLY);
+			msg->SendReply(&reply);
 
 		} break;
 	
@@ -173,14 +176,16 @@ void FileDaemon::MessageReceived(BMessage *msg) {
 		} break;
 
 		case kShutdown: {
-			fShuttingDown = true;
+			fShuttingDown.store(true);
 			delete fThreadPoolRunner;
 			fThreadPoolRunner = NULL;
 			for (info_t::iterator rIt = fRequests.begin();
 				rIt != fRequests.end(); rIt++) {
 				(*rIt)->request->ReleaseNetworkResources();
 				(*rIt)->request->ReleaseTemporaryStorage();
+				delete *rIt;
 			}
+			fRequests.clear();
 
 			BMessage reply(B_REPLY);
 			for (thread_t::iterator tIt = fThreads.begin();
@@ -219,13 +224,13 @@ status_t FileDaemon::AddRequest(FileRequest *request, int32 priority, BMessenger
 		return B_BAD_VALUE;
 	if (!Lock())
 		return B_ERROR;
-	if (fShuttingDown) {
+	if (fShuttingDown.load()) {
 		Unlock();
 		return B_NOT_ALLOWED;
 	}
 
 	RequestInfo *info = new RequestInfo(request, priority, target, start, finish, error, cancel);
-	request->AddHandler(this, info);
+	request->AddHandler(this, info, false);
 	
 	fRequests.push_back(info);
 	sort(fRequests.begin(), fRequests.end());
@@ -306,6 +311,19 @@ status_t FileDaemon::Shutdown(void) {
 		wait_for_thread(thread, &threadResult);
 	}
 
+	if (!Lock())
+		return B_ERROR;
+	bool requestsReleased = fRequests.empty();
+	for (thread_t::iterator tIt = fThreads.begin();
+		requestsReleased && tIt != fThreads.end(); tIt++) {
+		requestsReleased = tIt->second == NULL;
+	}
+	Unlock();
+	if (!requestsReleased)
+		return B_BUSY;
+
+	fprintf(stderr, "FileDaemon lifecycle: requests released\n");
+
 	messenger.SendMessage(B_QUIT_REQUESTED);
 	return B_OK;
 };
@@ -349,34 +367,33 @@ int32 FileDaemon::WaitOnRequests(void *arg) {
 
 		status_t result = info->request->Start();
 
-		// Send the complete/ error message
-		if (info->target) {
+		// Deliver terminal messages synchronously so the target finishes using
+		// the request before kRequestComplete releases it.
+		if (!us->fShuttingDown.load() && info->target) {
 			fprintf(stderr, "FileDaemon::WaitOnRequests(): %s: %s (%i)\n", info->request->URL(),
 				strerror(result), result);
+			BMessage terminalReply;
 		
 			switch (result) {
 				case B_OK: {
-					if (info->finish) {
-						info->target->SendMessage(info->finish);
-					} else {
+					if (info->finish)
+						info->target->SendMessage(info->finish, &terminalReply);
+					else
 						info->request->ReleaseTemporaryStorage();
-					}
 				} break;
 				
 				case DownloadCancelled: {
-					if (info->cancel) {
-						info->target->SendMessage(info->cancel);
-					} else {
+					if (info->cancel)
+						info->target->SendMessage(info->cancel, &terminalReply);
+					else
 						info->request->ReleaseTemporaryStorage();
-					}
 				} break;
 				
 				default: {
-					if (info->error) {
-						info->target->SendMessage(info->error);
-					} else {
+					if (info->error)
+						info->target->SendMessage(info->error, &terminalReply);
+					else
 						info->request->ReleaseTemporaryStorage();
-					}
 				} break;
 			};
 		} else {
@@ -386,8 +403,9 @@ int32 FileDaemon::WaitOnRequests(void *arg) {
 		BMessage requestComplete(kRequestComplete);
 		requestComplete.AddInt32("threadid", thread);
 		requestComplete.AddPointer("requestinfo", info);
-		
-		msgr.SendMessage(&requestComplete);
+		BMessage requestCompleteReply;
+		if (msgr.SendMessage(&requestComplete, &requestCompleteReply) != B_OK)
+			work = false;
 	};
 
 	BMessage threadComplete(kThreadComplete);

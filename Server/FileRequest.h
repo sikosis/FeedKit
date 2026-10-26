@@ -27,7 +27,8 @@ class FileRequest {
 							FileRequest(const char *url, BMessage progress = BMessage(), int32 offset = 0);
 							~FileRequest(void);
 		
-		void				AddHandler(FileRequestHandler *handler, void *data);
+		void				AddHandler(FileRequestHandler *handler, void *data,
+								bool takeOwnership = true);
 				
 		status_t			Start(void);
 		void				Cancel(void);

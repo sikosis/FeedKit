@@ -71,6 +71,8 @@ grep -F 'FeedServer smoke test: ReadyToRun complete' "$log" >/dev/null 2>&1 \
 	|| fail "feed_server did not reach ReadyToRun"
 grep -F 'FeedServer smoke test: QuitRequested complete' "$log" >/dev/null 2>&1 \
 	|| fail "feed_server did not complete its clean shutdown path"
+grep -F 'FileDaemon lifecycle: requests released' "$log" >/dev/null 2>&1 \
+	|| fail "the downloader did not release all requests"
 grep -F 'FeedServer lifecycle: services stopped' "$log" >/dev/null 2>&1 \
 	|| fail "feed_server did not release its runtime services"
 
