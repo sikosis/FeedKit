@@ -182,9 +182,12 @@ make installed-package-check
 ```
 
 The check deliberately fails if an old non-packaged `libfeedkit.so` shadows
-the packaged library. It starts the server through `StartListening()`, checks
-the server and both parser image paths, then requests a clean shutdown. It
-does not install or uninstall packages.
+the packaged library. Development builds register the same application
+signature, so the check first verifies the packaged server's embedded
+signature and selects its packagefs entry as the MIME application hint. It
+then starts the server through `StartListening()`, checks the server and both
+parser image paths, and requests clean shutdowns of the server and listener.
+It does not install or uninstall packages.
 
 The current native build requires the PCRE development package. On Haiku,
 install it with:

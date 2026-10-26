@@ -1,9 +1,12 @@
 #include <libfeedkit/FeedKitConstants.h>
 #include <libfeedkit/FeedListener.h>
 
+#include <AppFileInfo.h>
 #include <Application.h>
 #include <Entry.h>
+#include <File.h>
 #include <Messenger.h>
+#include <Mime.h>
 #include <OS.h>
 #include <Path.h>
 #include <Roster.h>
@@ -41,6 +44,49 @@ WaitForServer(bool running, app_info *info)
 	return false;
 }
 
+static bool
+SelectPackagedServer()
+{
+	const char *path = "/boot/system/servers/feed_server";
+	entry_ref ref;
+	if (get_ref_for_path(path, &ref) != B_OK) {
+		fprintf(stderr, "FAIL: packaged feed_server is unavailable at %s\n", path);
+		return false;
+	}
+
+	BFile file(path, B_READ_ONLY);
+	BAppFileInfo appInfo(&file);
+	char signature[B_MIME_TYPE_LENGTH];
+	if (file.InitCheck() != B_OK || appInfo.InitCheck() != B_OK
+		|| appInfo.GetSignature(signature) != B_OK
+		|| strcmp(signature, ServerSignature) != 0) {
+		fprintf(stderr, "FAIL: packaged feed_server does not carry the preserved application signature\n");
+		return false;
+	}
+
+	BMimeType mime(ServerSignature);
+	if (!mime.IsInstalled() || mime.SetAppHint(&ref) != B_OK) {
+		fprintf(stderr, "FAIL: could not select the packaged feed_server for its MIME signature\n");
+		return false;
+	}
+
+	return true;
+}
+
+static void
+StopListener(FeedListener *listener)
+{
+	if (listener == NULL)
+		return;
+	thread_id thread = listener->Thread();
+	listener->StopListening();
+	BMessenger(listener).SendMessage(B_QUIT_REQUESTED);
+	if (thread >= B_OK) {
+		status_t result;
+		wait_for_thread(thread, &result);
+	}
+}
+
 class LifecycleApplication : public BApplication {
 	public:
 		LifecycleApplication()
@@ -62,6 +108,10 @@ class LifecycleApplication : public BApplication {
 				PostMessage(B_QUIT_REQUESTED);
 				return;
 			}
+			if (!SelectPackagedServer()) {
+				PostMessage(B_QUIT_REQUESTED);
+				return;
+			}
 
 			BMessenger existing(ServerSignature);
 			if (existing.IsValid()) {
@@ -79,7 +129,7 @@ class LifecycleApplication : public BApplication {
 			app_info serverInfo;
 			if (!WaitForServer(true, &serverInfo)) {
 				fprintf(stderr, "FAIL: StartListening did not launch the packaged feed_server\n");
-				delete listener;
+				StopListener(listener);
 				PostMessage(B_QUIT_REQUESTED);
 				return;
 			}
@@ -90,7 +140,7 @@ class LifecycleApplication : public BApplication {
 				fprintf(stderr, "FAIL: feed_server was not launched from the packaged system server directory: %s\n",
 					serverPath.Path() != NULL ? serverPath.Path() : "<unknown>");
 				StopServer(serverInfo.team);
-				delete listener;
+				StopListener(listener);
 				PostMessage(B_QUIT_REQUESTED);
 				return;
 			}
@@ -110,13 +160,13 @@ class LifecycleApplication : public BApplication {
 			if (!atomLoaded || !rssLoaded) {
 				fprintf(stderr, "FAIL: packaged parser add-ons were not loaded\n");
 				StopServer(serverInfo.team);
-				delete listener;
+				StopListener(listener);
 				PostMessage(B_QUIT_REQUESTED);
 				return;
 			}
 
 			StopServer(serverInfo.team);
-			delete listener;
+			StopListener(listener);
 			fResult = 0;
 			printf("FeedKit installed-package test passed: packaged library loaded, StartListening launched the packaged server, and Atom/RSS add-ons loaded.\n");
 			PostMessage(B_QUIT_REQUESTED);
