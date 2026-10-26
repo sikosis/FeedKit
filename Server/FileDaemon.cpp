@@ -370,8 +370,10 @@ int32 FileDaemon::WaitOnRequests(void *arg) {
 		// Deliver terminal messages synchronously so the target finishes using
 		// the request before kRequestComplete releases it.
 		if (!us->fShuttingDown.load() && info->target) {
-			fprintf(stderr, "FileDaemon::WaitOnRequests(): %s: %s (%i)\n", info->request->URL(),
-				strerror(result), result);
+			fprintf(stderr, "FileDaemon::WaitOnRequests(): %s: %s (curl %i, HTTP %li)\n",
+				info->request->URL(), result == B_OK ? "No error"
+					: info->request->Error(), info->request->CurlStatus(),
+				info->request->HTTPStatus());
 			BMessage terminalReply;
 		
 			switch (result) {

@@ -1448,8 +1448,12 @@ status_t FeedServer::HandleFeedDownloadError(BMessage *msg) {
 		const char *name = "";
 		msg->FindString("name", &name);
 		Feed feed(request->URL(), name);
+		BString description("Unable to download feed: ");
+		description << request->Error();
+		if (request->HTTPStatus() > 0)
+			description << " (HTTP " << request->HTTPStatus() << ")";
 		ErrorDetails error(ErrorCode::UnableToDownloadFeed,
-			"Unable to download feed");
+			description.String());
 		BMessage errorNotify(FeedKit::Private::FromServer::RegisterFeedError);
 		errorNotify.AddFlat("error", &error);
 		errorNotify.AddFlat("feed", &feed);

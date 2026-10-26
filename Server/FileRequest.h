@@ -48,6 +48,9 @@ class FileRequest {
 		status_t			StorageStatus(void) const;
 		bool				Completed(void);
 		const char			*MIME(void);
+		CURLcode			CurlStatus(void) const;
+		long				HTTPStatus(void) const;
+		const char			*Error(void) const;
 		
 		BMessage			ProgressMessage(void);
 
@@ -68,10 +71,13 @@ class FileRequest {
 		status_t			fStorageStatus;
 		CURL				*fCurl;
 		CURLcode			fCurlStatus;
+		CURLcode			fResult;
+		long				fHTTPStatus;
+		char				fCurlError[CURL_ERROR_SIZE];
 		time_t				fStart;
 		time_t				fEnd;
-		int32				fExpectedSize;
-		int32				fSize;
+		curl_off_t			fExpectedSize;
+		curl_off_t			fSize;
 		bool				fComplete;
 		BString				fMIME;
 		BMessage			fProgress;

@@ -1,7 +1,8 @@
 # makefile for all sample code
 
 SUBDIRS = \
-	libfeedkit
+	libfeedkit \
+	network
 
 .PHONY: default clean test
 	
@@ -18,3 +19,5 @@ clean:
 test: default
 	LIBRARY_PATH="../build$${LIBRARY_PATH:+:$$LIBRARY_PATH}" \
 		../build/Tests/feedkit_tests
+	LIBRARY_PATH="../build$${LIBRARY_PATH:+:$$LIBRARY_PATH}" \
+		../build/Tests/file_request_tests "$(shell pwd)/fixtures/integration.rss"

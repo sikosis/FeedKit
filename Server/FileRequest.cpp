@@ -12,6 +12,8 @@
 #include <stdlib.h>
 #include <string.h>
 #include <unistd.h>
+#include <limits.h>
+#include <limits>
 
 //#pragma mark RequestHandlerInfo
 
@@ -57,10 +59,15 @@ FileRequest::FileRequest(const char *url, entry_ref ref, BMessage progress, int3
 	fStorageStatus(B_NO_INIT),
 	fCurl(NULL),
 	fCurlStatus(CURLE_OK),
+	fResult(CURLE_OK),
+	fHTTPStatus(0),
 	fProgress(progress),
-	fOffset(offset) {
+	fOffset(offset < 0 ? 0 : offset) {
 
-	fStorageStatus = fFile.SetTo(&ref, B_READ_WRITE | B_CREATE_FILE);
+	uint32 openMode = B_READ_WRITE | B_CREATE_FILE;
+	if (fOffset == 0)
+		openMode |= B_ERASE_FILE;
+	fStorageStatus = fFile.SetTo(&ref, openMode);
 	if (fStorageStatus == B_OK && fOffset > 0
 		&& fFile.Seek(fOffset, SEEK_SET) != fOffset)
 		fStorageStatus = B_FILE_ERROR;
@@ -74,8 +81,11 @@ FileRequest::FileRequest(const char *url, BMessage progress, int32 offset)
 	fStorageStatus(B_NO_INIT),
 	fCurl(NULL),
 	fCurlStatus(CURLE_OK),
+	fResult(CURLE_OK),
+	fHTTPStatus(0),
 	fProgress(progress),
-	fOffset(offset) {
+	fOffset(0) {
+	(void)offset;
 
 	BPath path;
 	fStorageStatus = find_directory(B_SYSTEM_TEMP_DIRECTORY, &path);
@@ -119,6 +129,7 @@ FileRequest::~FileRequest(void) {
 
 void FileRequest::AddHandler(FileRequestHandler *handler, void *data,
 	bool takeOwnership) {
+	if (handler == NULL) return;
 	fHandler.push_back(new RequestHandlerInfo(handler, data, takeOwnership));
 };
 
@@ -127,6 +138,9 @@ status_t FileRequest::Start(void) {
 		if (fCurlStatus != CURLE_OK)
 			fprintf(stderr, "FileRequest::Start - curl setup failed: %s\n",
 				curl_easy_strerror(fCurlStatus));
+		fResult = fCurlStatus == CURLE_OK ? CURLE_FAILED_INIT : fCurlStatus;
+		fEnd = time(NULL);
+		fComplete = true;
 		status_t result = fStorageStatus != B_OK ? fStorageStatus : B_ERROR;
 		ReleaseNetworkResources();
 		return result;
@@ -136,8 +150,10 @@ status_t FileRequest::Start(void) {
 	status_t result = B_ERROR;
 	
 	CURLcode curlResult = curl_easy_perform(fCurl);
+	fResult = curlResult;
+	curl_easy_getinfo(fCurl, CURLINFO_RESPONSE_CODE, &fHTTPStatus);
 	if (curlResult != CURLE_OK) {
-		if (curlResult == CURLE_HTTP_RANGE_ERROR) {
+		if (curlResult == CURLE_RANGE_ERROR) {
 			fprintf(stderr, "FileRequest::Start - %s couldn't be resumed, restarting\n", fURL.String());
 			fOffset = 0;
 
@@ -154,7 +170,7 @@ status_t FileRequest::Start(void) {
 
 			if (reset == B_OK) {
 				Init();
-				result = Start();
+				return Start();
 			} else {
 				result = reset;
 			}
@@ -180,7 +196,8 @@ const char *FileRequest::URL(void) {
 };
 
 int32 FileRequest::ExpectedSize(void) {
-	return fExpectedSize;
+	return fExpectedSize > INT32_MAX ? INT32_MAX
+		: static_cast<int32>(fExpectedSize);
 };
 
 float FileRequest::Speed(void) {
@@ -212,7 +229,7 @@ time_t FileRequest::Duration(void) {
 };
 
 int32 FileRequest::Size(void) {
-	return fSize;
+	return fSize > INT32_MAX ? INT32_MAX : static_cast<int32>(fSize);
 };
 
 entry_ref FileRequest::Ref(void) {
@@ -278,6 +295,20 @@ const char *FileRequest::MIME(void) {
 	return fMIME.String();
 };
 
+CURLcode FileRequest::CurlStatus(void) const {
+	return fResult;
+};
+
+long FileRequest::HTTPStatus(void) const {
+	return fHTTPStatus;
+};
+
+const char *FileRequest::Error(void) const {
+	if (fStorageStatus != B_OK)
+		return strerror(fStorageStatus);
+	return fCurlError[0] == '\0' ? curl_easy_strerror(fResult) : fCurlError;
+};
+
 BMessage FileRequest::ProgressMessage(void) {
 	return fProgress;
 };
@@ -294,15 +325,20 @@ void FileRequest::Init(void) {
 	fEnd = -1;
 	fExpectedSize = 0;
 	fComplete = false;
-	fSize = 0;
+	fSize = fOffset;
 	fMIME = "";
 	fStartSent = false;
 	fCancelDownload.store(false);
 	fCurlStatus = CURLE_OK;
+	fResult = CURLE_OK;
+	fHTTPStatus = 0;
+	fCurlError[0] = '\0';
 	
 	fCurl = curl_easy_init();
-	if (fCurl == NULL)
+	if (fCurl == NULL) {
+		fCurlStatus = CURLE_FAILED_INIT;
 		return;
+	}
 
 #define SET_CURL_OPTION(option, value) \
 	do { \
@@ -312,7 +348,10 @@ void FileRequest::Init(void) {
 	} while (0)
 
 	SET_CURL_OPTION(CURLOPT_NOSIGNAL, 1L);
+	SET_CURL_OPTION(CURLOPT_ERRORBUFFER, fCurlError);
 	SET_CURL_OPTION(CURLOPT_URL, fURL.String());
+	SET_CURL_OPTION(CURLOPT_PROTOCOLS_STR, "file,http,https");
+	SET_CURL_OPTION(CURLOPT_REDIR_PROTOCOLS_STR, "http,https");
 	SET_CURL_OPTION(CURLOPT_WRITEFUNCTION, SaveData);
 	SET_CURL_OPTION(CURLOPT_WRITEDATA, this);
 	SET_CURL_OPTION(CURLOPT_HEADERFUNCTION, ParseHeader);
@@ -321,6 +360,10 @@ void FileRequest::Init(void) {
 	SET_CURL_OPTION(CURLOPT_MAXREDIRS, 10L);
 	SET_CURL_OPTION(CURLOPT_FAILONERROR, 1L);
 	SET_CURL_OPTION(CURLOPT_CONNECTTIMEOUT, 30L);
+	SET_CURL_OPTION(CURLOPT_SSL_VERIFYPEER, 1L);
+	SET_CURL_OPTION(CURLOPT_SSL_VERIFYHOST, 2L);
+	SET_CURL_OPTION(CURLOPT_ACCEPT_ENCODING, "");
+	SET_CURL_OPTION(CURLOPT_USERAGENT, "FeedKit/0.1");
 	SET_CURL_OPTION(CURLOPT_NOPROGRESS, 0L);
 	SET_CURL_OPTION(CURLOPT_XFERINFOFUNCTION, Progress);
 	SET_CURL_OPTION(CURLOPT_XFERINFODATA, this);
@@ -338,8 +381,11 @@ void FileRequest::Init(void) {
 
 size_t FileRequest::ParseHeader(void *header, size_t size, size_t length, void *ptr) {
 	FileRequest *us = reinterpret_cast<FileRequest *>(ptr);
+	if (size != 0 && length > static_cast<size_t>(-1) / size)
+		return 0;
+	size_t bytes = size * length;
 		
-	BString headerStr((char *)header, length);
+	BString headerStr((char *)header, bytes);
 	int32 colon = headerStr.IFindFirst(":");
 
 	if (colon != B_ERROR) {
@@ -351,7 +397,11 @@ size_t FileRequest::ParseHeader(void *header, size_t size, size_t length, void *
 			value.IReplaceAll("\r", "");
 			value.IReplaceAll("\n", "");
 			value.IReplaceAll(" ", "");
-			us->fExpectedSize = atol(value.String());
+			curl_off_t contentLength = strtoll(value.String(), NULL, 10);
+			if (contentLength >= 0
+				&& contentLength <= std::numeric_limits<curl_off_t>::max()
+					- us->fOffset)
+				us->fExpectedSize = us->fOffset + contentLength;
 
 		};
 		if (headerStr.ICompare("Content-Type") == 0) {
@@ -363,18 +413,20 @@ size_t FileRequest::ParseHeader(void *header, size_t size, size_t length, void *
 		};
 	};
 
-	return size * length;
+	return bytes;
 };
 
 size_t FileRequest::SaveData(void *data, size_t size, size_t length, void *ptr) {
 	FileRequest *us = reinterpret_cast<FileRequest *>(ptr);
+	if (size != 0 && length > static_cast<size_t>(-1) / size)
+		return 0;
 	size_t bytes = size * length;
 	ssize_t written = us->fTemporaryFD >= 0
 		? ::write(us->fTemporaryFD, data, bytes) : us->fFile.Write(data, bytes);
 	if (written < 0)
 		return 0;
 
-	us->fSize += static_cast<int32>(written);
+	us->fSize += static_cast<curl_off_t>(written);
 
 	if (us->fStartSent == false) {
 		for (handlerinfo_t::iterator rIt = us->fHandler.begin(); rIt != us->fHandler.end(); rIt++) {
@@ -392,6 +444,9 @@ int FileRequest::Progress(void *data, curl_off_t downTotal, curl_off_t downNow,
 	FileRequest *us = reinterpret_cast<FileRequest *>(data);
 	(void)upTotal;
 	(void)upNow;
+	if (downTotal > 0
+		&& downTotal <= std::numeric_limits<curl_off_t>::max() - us->fOffset)
+		us->fExpectedSize = us->fOffset + downTotal;
 
 	for (handlerinfo_t::iterator rIt = us->fHandler.begin(); rIt != us->fHandler.end(); rIt++) {
 		(*rIt)->DownloadProgress(us, static_cast<double>(downTotal),

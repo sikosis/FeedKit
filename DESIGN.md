@@ -6,7 +6,7 @@ This document records the compatibility audit performed against Haiku
 R1/beta6 and the staged plan for restoring FeedKit. The original audit
 baseline did not build or run natively. As of 26 October 2026, the core
 library, server, RSS and Atom parser add-ons build on beta6 x86_64, and the
-90-check unit suite plus smoke and integration tests pass. The remaining
+113-check unit suite plus smoke and integration tests pass. The remaining
 stages are tracked in `README.md`.
 
 The audit used:
