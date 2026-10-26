@@ -1,0 +1,106 @@
+SUMMARY="RSS and Atom feed services and library for Haiku"
+DESCRIPTION="FeedKit provides a native Haiku feed library, a background feed \
+server, and dynamically loaded RSS and Atom parser add-ons. This maintained \
+fork preserves the original public API, application signature, UUIDs, and \
+stored feed formats while supporting current Haiku systems."
+HOMEPAGE="https://github.com/sikosis/FeedKit"
+COPYRIGHT="2008-2009 Michael Davidson"
+LICENSE="MIT"
+REVISION="1"
+srcGitRev="4cb18f4fd422d0e110a4e864a6979959c3ba204a"
+SOURCE_URI="https://github.com/sikosis/FeedKit/archive/$srcGitRev.tar.gz"
+CHECKSUM_SHA256="45e73e45c2bbd98033714a37717fdaceaf3b3d26953dde43b66538159ee91c89"
+SOURCE_FILENAME="feedkit-$portVersion-$srcGitRev.tar.gz"
+SOURCE_DIR="FeedKit-$srcGitRev"
+
+ARCHITECTURES="!x86_gcc2 x86 x86_64"
+if [ "$targetArchitecture" = x86_gcc2 ]; then
+	SECONDARY_ARCHITECTURES="x86"
+fi
+
+PROVIDES="
+	feedkit$secondaryArchSuffix = $portVersion
+	lib:libfeedkit$secondaryArchSuffix = $portVersion
+	"
+REQUIRES="
+	haiku$secondaryArchSuffix
+	lib:libcrypto$secondaryArchSuffix
+	lib:libcurl$secondaryArchSuffix
+	lib:libiconv$secondaryArchSuffix
+	lib:libpcre$secondaryArchSuffix
+	lib:libstdc++$secondaryArchSuffix
+	lib:libxml2$secondaryArchSuffix
+	lib:libz$secondaryArchSuffix
+	"
+
+PROVIDES_devel="
+	feedkit${secondaryArchSuffix}_devel = $portVersion
+	devel:libfeedkit$secondaryArchSuffix = $portVersion
+	"
+REQUIRES_devel="
+	feedkit$secondaryArchSuffix == $portVersion base
+	"
+
+BUILD_REQUIRES="
+	haiku${secondaryArchSuffix}_devel
+	devel:libcrypto$secondaryArchSuffix
+	devel:libcurl$secondaryArchSuffix
+	devel:libiconv$secondaryArchSuffix
+	devel:libpcre$secondaryArchSuffix
+	devel:libxml2$secondaryArchSuffix
+	devel:libz$secondaryArchSuffix
+	"
+BUILD_PREREQUIRES="
+	cmd:gcc$secondaryArchSuffix
+	cmd:make
+	cmd:pkg_config$secondaryArchSuffix
+	"
+
+defineDebugInfoPackage feedkit$secondaryArchSuffix \
+	"$libDir/libfeedkit.so" \
+	"$prefix/servers/feed_server" \
+	"$addOnsDir/feed_kit/Parsers/Atom" \
+	"$addOnsDir/feed_kit/Parsers/RSS"
+
+BUILD()
+{
+	make $jobArgs
+}
+
+INSTALL()
+{
+	install -d \
+		"$libDir" \
+		"$prefix/servers" \
+		"$addOnsDir/feed_kit/Parsers" \
+		"$includeDir/libfeedkit" \
+		"$developLibDir" \
+		"$docDir"
+
+	install -m 0755 build/libfeedkit.so "$libDir/libfeedkit.so"
+	install -m 0755 build/feed_server "$prefix/servers/feed_server"
+	install -m 0755 build/Parsers/Atom \
+		"$addOnsDir/feed_kit/Parsers/Atom"
+	install -m 0755 build/Parsers/RSS \
+		"$addOnsDir/feed_kit/Parsers/RSS"
+
+	while read header; do
+		case "$header" in
+			""|'#'*) continue ;;
+		esac
+		install -d "$includeDir/libfeedkit/$(dirname "$header")"
+		install -m 0644 "libfeedkit/$header" \
+			"$includeDir/libfeedkit/$header"
+	done < packaging/public-headers.txt
+
+	install -m 0644 README.md DESIGN.md LICENSE "$docDir"
+	symlinkRelative -s "$libDir/libfeedkit.so" \
+		"$developLibDir/libfeedkit.so"
+
+	packageEntries devel "$developDir"
+}
+
+TEST()
+{
+	make unit
+}

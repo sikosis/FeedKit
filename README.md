@@ -43,7 +43,7 @@ findings, constraints, and acceptance criteria.
 | Native beta6 baseline | Complete — 25 October 2026 | User-confirmed successful default build of `libfeedkit.so`, `feed_server`, and the RSS/Atom parser add-ons on R1/beta6 x86_64. Build repairs covered malformed makefiles, dependencies, compiler/linker flags, fixed-width types, protected server access, modern curl callbacks, and repository-local linking. |
 | Core safety and compatibility | Complete — 26 October 2026 | The dependency-free suite passes all 113 checks natively on beta6. It covers stable UUIDs, serialization, download progress, listener safety, parent-owned model trees, deep copy and assignment, replacement-safe unflattening, independent refresh merges, download-request ownership, and complete server teardown. Native smoke and integration runs also pass. |
 | Network and parser modernization | Complete — 26 October 2026 | Native beta6 smoke and integration tests pass, including RSS/Atom registration and refresh, ordered package-aware parser discovery, clean shutdown, missing downloads, malformed-feed isolation, and two-process persistence/restart with stable UUIDs. The 55-check FileRequest suite covers local files and offline loopback HTTP. The 47-check parser suite covers valid, malformed, incomplete, discovered, duplicate-path, ISO-8859-1, and UTF-8 cases. Together with 113 model checks, all 215 focused checks pass. |
-| Package and lifecycle integration | In progress — 27 October 2026 | The staged layout, x86_64 HPKG generation, activation, signature-based on-demand startup, packaged library/server/parser discovery, and clean shutdown pass natively. Removal/user-data preservation, the HaikuPorter recipe, and secondary-architecture validation remain. |
+| Package and lifecycle integration | In progress — 27 October 2026 | The staged layout, x86_64 HPKG generation, activation, signature-based on-demand startup, packaged library/server/parser discovery, clean shutdown, removal, and user-data preservation pass natively. A pinned HaikuPorter recipe is ready for strict native validation; secondary-architecture validation remains. |
 | Optional client ports | Planned | Port clients independently after the core is stable; replace obsolete NetPositive and InfoPopper integrations where necessary. |
 | Beta6 release validation | Planned | Pass builds, tests, integration checks, and HPKG installation on x86_64 and the modern secondary `x86` architecture. |
 
@@ -206,6 +206,27 @@ make package-removal-check
 
 The successful check removes only its own marker and state file. It never
 deletes the FeedKit settings directory, preferences, feeds, or enclosures.
+
+### HaikuPorter recipe
+
+The pinned recipe is stored at
+`packaging/haikuports/feedkit-0.1.0.recipe`. Copy it into a local HaikuPorts
+checkout as `net-libs/feedkit/feedkit-0.1.0.recipe`, then run HaikuPorter's
+strict source and recipe checks:
+
+```sh
+HAIKUPORTS_TREE=/boot/home/haikuports
+mkdir -p "$HAIKUPORTS_TREE/net-libs/feedkit"
+cp packaging/haikuports/feedkit-0.1.0.recipe \
+    "$HAIKUPORTS_TREE/net-libs/feedkit/feedkit-0.1.0.recipe"
+haikuporter -S --no-source-packages feedkit
+```
+
+The recipe is pinned to the source commit that passed x86_64 build, test,
+HPKG activation, lifecycle, and removal checks. It produces a runtime package
+plus a `feedkit_devel` package containing the public headers and development
+library link. On an x86_gcc2 hybrid installation it intentionally builds only
+for the modern secondary `x86` architecture.
 
 The current native build requires the PCRE development package. On Haiku,
 install it with:
