@@ -42,7 +42,7 @@ findings, constraints, and acceptance criteria.
 | Native beta6 baseline | Complete — 25 October 2026 | User-confirmed successful default build of `libfeedkit.so`, `feed_server`, and the RSS/Atom parser add-ons on R1/beta6 x86_64. Build repairs covered malformed makefiles, dependencies, compiler/linker flags, fixed-width types, protected server access, modern curl callbacks, and repository-local linking. |
 | Core safety and compatibility | Complete — 26 October 2026 | The dependency-free suite passes all 113 checks natively on beta6. It covers stable UUIDs, serialization, download progress, listener safety, parent-owned model trees, deep copy and assignment, replacement-safe unflattening, independent refresh merges, download-request ownership, and complete server teardown. Native smoke and integration runs also pass. |
 | Network and parser modernization | Complete — 26 October 2026 | Native beta6 smoke and integration tests pass, including RSS/Atom registration and refresh, ordered package-aware parser discovery, clean shutdown, missing downloads, malformed-feed isolation, and two-process persistence/restart with stable UUIDs. The 55-check FileRequest suite covers local files and offline loopback HTTP. The 47-check parser suite covers valid, malformed, incomplete, discovered, duplicate-path, ISO-8859-1, and UTF-8 cases. Together with 113 model checks, all 215 focused checks pass. |
-| Package and lifecycle integration | In progress — 26 October 2026 | A non-destructive staged package layout and exact content check now cover the library, server, parser add-ons, public headers, and documentation. The HaikuPorter recipe, installed-server discovery, lifecycle decision, and install/remove validation remain. |
+| Package and lifecycle integration | In progress — 27 October 2026 | A non-destructive staged package layout and exact content check now cover the library, server, parser add-ons, public headers, and documentation. Local HPKG generation is ready for native verification. The HaikuPorter recipe, installed-server discovery, lifecycle decision, and install/remove validation remain. |
 | Optional client ports | Planned | Port clients independently after the core is stable; replace obsolete NetPositive and InfoPopper integrations where necessary. |
 | Beta6 release validation | Planned | Pass builds, tests, integration checks, and HPKG installation on x86_64 and the modern secondary `x86` architecture. |
 
@@ -154,8 +154,18 @@ make package-check
 The staged tree is written to `build/package-root` by default. It contains the
 runtime library, server, RSS and Atom parser add-ons, the explicitly
 maintained public-header set, and project documentation. Override
-`PACKAGE_ROOT` to inspect another disposable staging directory. This is a
-layout check, not yet an HPKG build or installation.
+`PACKAGE_ROOT` to inspect another disposable staging directory.
+
+After the layout check passes, create and inspect a local HPKG with:
+
+```sh
+make package
+```
+
+This writes `build/feedkit-0.1.0-1-<architecture>.hpkg`. It validates the
+embedded package name, version, architecture, server, library, and parser
+paths with Haiku's `package` tool. It does not install, publish, or otherwise
+activate the package.
 
 The current native build requires the PCRE development package. On Haiku,
 install it with:

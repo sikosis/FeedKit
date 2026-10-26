@@ -4,14 +4,15 @@
 
 This document records the compatibility audit performed against Haiku
 R1/beta6 and the staged plan for restoring FeedKit. The original audit
-baseline did not build or run natively. As of 26 October 2026, the core
+baseline did not build or run natively. As of 27 October 2026, the core
 library, server, RSS and Atom parser add-ons build on beta6 x86_64, and the
 113-check model, 55-check FileRequest, and 47-check parser suites pass. Phase 3
 network/parser integration also passes registration, refresh, failure
 isolation, persistence, restart, and clean-shutdown checks. Phase 4 packaging
-work has started with a non-destructive staged layout and content check;
-HaikuPorter, installed lifecycle validation, optional clients, and release
-validation remain and are tracked in `README.md`.
+work has started with a non-destructive staged layout, content check, and
+local HPKG generation; HaikuPorter and installed lifecycle validation still
+require native verification. Optional clients and release validation remain
+and are tracked in `README.md`.
 
 The audit used:
 
