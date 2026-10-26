@@ -4,8 +4,12 @@
 #include <libfeedkit/Enclosure.h>
 #include <libfeedkit/ErrorDetails.h>
 #include <libfeedkit/Feed.h>
+#include <libfeedkit/FeedHandler.h>
+#include <libfeedkit/FeedListener.h>
 #include <libfeedkit/Item.h>
+#include <libfeedkit/Private/Constants.h>
 
+#include <Roster.h>
 #include <stdio.h>
 #include <string.h>
 #include <time.h>
@@ -30,6 +34,40 @@ class FeedServer {
 
 static int32 sChecks = 0;
 static int32 sFailures = 0;
+
+class CountingHandler : public FeedHandler {
+	public:
+		CountingHandler()
+			: fServerStarted(0),
+			fChannelUpdated(0),
+			fItemRead(0),
+			fEnclosureStarted(0) {
+		}
+
+		void ServerStarted() {
+			fServerStarted++;
+		}
+
+		void ChannelUpdated(Feed *, Channel *channel) {
+			if (channel != NULL)
+				fChannelUpdated++;
+		}
+
+		void ItemRead(Feed *, Channel *channel, Item *item) {
+			if (channel != NULL && item != NULL)
+				fItemRead++;
+		}
+
+		void EnclosureDownloadStarted(Feed *, Item *item, Enclosure *enclosure) {
+			if (item != NULL && enclosure != NULL)
+				fEnclosureStarted++;
+		}
+
+		int32 fServerStarted;
+		int32 fChannelUpdated;
+		int32 fItemRead;
+		int32 fEnclosureStarted;
+};
 
 static void
 Check(bool condition, const char *description)
@@ -312,12 +350,126 @@ TestDownloadProgress()
 	}
 }
 
+static void
+TestFeedListenerSafety()
+{
+	FeedListener *listener = new FeedListener();
+	CountingHandler registered;
+	CountingHandler unknown;
+
+	listener->AddHandler(NULL);
+	listener->AddHandler(&registered);
+	listener->AddHandler(&registered);
+	listener->RemoveHandler(&unknown);
+
+	BMessage launched(B_SOME_APP_LAUNCHED);
+	launched.AddString("be:signature", FeedKit::ServerSignature);
+	listener->MessageReceived(&launched);
+	Check(registered.fServerStarted == 1,
+		"FeedListener registered the same handler more than once");
+
+	listener->RemoveHandler(&registered);
+	listener->MessageReceived(&launched);
+	Check(registered.fServerStarted == 1,
+		"FeedListener called a removed handler");
+	listener->AddHandler(&registered);
+
+	Feed feed("https://example.com/listener.xml", "Listener fixture");
+	Channel channel;
+	channel.Title("Listener channel");
+	channel.Link("https://example.com/listener");
+	channel.Description("Listener channel fixture");
+	feed.AddChannel(&channel);
+	Item item;
+	item.Author("Listener test");
+	item.Title("Listener item");
+	item.GUID("listener-item");
+	item.Link("https://example.com/listener/item");
+	channel.AddItem(&item);
+	Enclosure enclosure("https://example.com/listener.ogg", "audio/ogg",
+		"Listener enclosure", 100);
+	item.AddEnclosure(&enclosure);
+
+	BString channelUUID(channel.UUID());
+	BString itemUUID(item.UUID());
+	BString enclosureUUID(enclosure.UUID());
+
+	BMessage channelUpdated(FeedKit::Private::FromServer::ChannelUpdated);
+	channelUpdated.AddFlat("feed", &feed);
+	channelUpdated.AddString("channel", channelUUID);
+	listener->MessageReceived(&channelUpdated);
+	Check(registered.fChannelUpdated == 1,
+		"FeedListener did not reconstruct a valid channel update");
+
+	BMessage missingChannel(FeedKit::Private::FromServer::ChannelUpdated);
+	missingChannel.AddFlat("feed", &feed);
+	missingChannel.AddString("channel", "missing-channel");
+	listener->MessageReceived(&missingChannel);
+	Check(registered.fChannelUpdated == 1,
+		"FeedListener dispatched an invalid channel update");
+
+	BMessage itemRead(FeedKit::Private::FromServer::ItemRead);
+	itemRead.AddFlat("feed", &feed);
+	itemRead.AddString("channel", channelUUID);
+	itemRead.AddString("item", itemUUID);
+	listener->MessageReceived(&itemRead);
+	Check(registered.fItemRead == 1,
+		"FeedListener did not reconstruct a valid item update");
+
+	BMessage missingItem(FeedKit::Private::FromServer::ItemRead);
+	missingItem.AddFlat("feed", &feed);
+	missingItem.AddString("channel", channelUUID);
+	missingItem.AddString("item", "missing-item");
+	listener->MessageReceived(&missingItem);
+	Check(registered.fItemRead == 1,
+		"FeedListener dispatched an invalid item update");
+
+	BMessage enclosureStarted(
+		FeedKit::Private::FromServer::DownloadEnclosureStarted);
+	enclosureStarted.AddFlat("feed", &feed);
+	enclosureStarted.AddString("channel", channelUUID);
+	enclosureStarted.AddString("item", itemUUID);
+	enclosureStarted.AddString("enclosure", enclosureUUID);
+	listener->MessageReceived(&enclosureStarted);
+	Check(registered.fEnclosureStarted == 1,
+		"FeedListener did not reconstruct a valid enclosure update");
+
+	BMessage missingEnclosure(
+		FeedKit::Private::FromServer::DownloadEnclosureStarted);
+	missingEnclosure.AddFlat("feed", &feed);
+	missingEnclosure.AddString("channel", channelUUID);
+	missingEnclosure.AddString("item", itemUUID);
+	missingEnclosure.AddString("enclosure", "missing-enclosure");
+	listener->MessageReceived(&missingEnclosure);
+	Check(registered.fEnclosureStarted == 1,
+		"FeedListener dispatched an invalid enclosure update");
+
+	Check(listener->RefreshFeed(NULL) == B_BAD_VALUE,
+		"FeedListener accepted a null feed refresh");
+	Check(listener->SendMessage(NULL) == B_BAD_VALUE,
+		"FeedListener accepted a null message");
+	Check(listener->MarkItemRead(NULL) == B_BAD_VALUE,
+		"FeedListener accepted a null item update");
+	Check(listener->RegisterFeed(NULL) == B_BAD_VALUE,
+		"FeedListener accepted a null registration URL");
+	Check(listener->ChannelIconPath(NULL) == NULL,
+		"FeedListener accepted a null icon channel");
+	Check(listener->DownloadEnclosure(NULL, &enclosure, "/tmp") == B_BAD_VALUE,
+		"FeedListener accepted a null enclosure item");
+	Check(listener->CancelEnclosureDownload(&item, NULL) == B_BAD_VALUE,
+		"FeedListener accepted a null enclosure cancellation");
+
+	listener->RemoveHandler(&registered);
+	BMessenger(listener).SendMessage(B_QUIT_REQUESTED);
+}
+
 int
 main()
 {
 	TestUUIDFixtures();
 	TestModelRoundTrips();
 	TestDownloadProgress();
+	TestFeedListenerSafety();
 
 	if (sFailures == 0) {
 		printf("FeedKit unit tests passed: %d checks.\n", (int)sChecks);

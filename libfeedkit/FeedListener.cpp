@@ -100,13 +100,14 @@ void FeedListener::MessageReceived(BMessage *msg) {
 		
 		case FeedKit::Private::FromServer::ChannelUpdated: {
 			Feed feed;
-			const char *channelUUID;
-			Channel *channel;
+			const char *channelUUID = NULL;
 			
 			if (msg->FindFlat("feed", &feed) != B_OK) return;
 			if (msg->FindString("channel", &channelUUID) != B_OK) return;
 			
-			channel = feed.ChannelByUUID(channelUUID);
+			Channel *channel = feed.ChannelByUUID(channelUUID);
+			if (channel == NULL) return;
+			channel->ParentFeed(&feed);
 						
 			for (handler_t::iterator hIt = fHandler.begin(); hIt != fHandler.end(); hIt++) {
 				(*hIt)->ChannelUpdated(&feed, channel);
@@ -115,17 +116,18 @@ void FeedListener::MessageReceived(BMessage *msg) {
 
 		case FeedKit::Private::FromServer::ItemRead: {
 			Feed feed;
-			const char *channelUUID;
-			const char *itemUUID;
+			const char *channelUUID = NULL;
+			const char *itemUUID = NULL;
 			
 			if (msg->FindFlat("feed", &feed) != B_OK) return;
 			if (msg->FindString("channel", &channelUUID) != B_OK) return;
 			if (msg->FindString("item", &itemUUID) != B_OK) return;
 			
 			Channel *channel = feed.ChannelByUUID(channelUUID);
-			Item *item = channel->ItemByUUID(itemUUID);
-			
+			if (channel == NULL) return;
 			channel->ParentFeed(&feed);
+			Item *item = channel->ItemByUUID(itemUUID);
+			if (item == NULL) return;
 			item->ParentChannel(channel);
 			
 			for (handler_t::iterator hIt = fHandler.begin(); hIt != fHandler.end(); hIt++) {
@@ -205,8 +207,13 @@ void FeedListener::MessageReceived(BMessage *msg) {
 			if (msg->FindString("enclosure", &enclosureUUID) != B_OK) return;
 			
 			Channel *channel = feed.ChannelByUUID(channelUUID);
+			if (channel == NULL) return;
+			channel->ParentFeed(&feed);
 			Item *item = channel->ItemByUUID(itemUUID);
+			if (item == NULL) return;
+			item->ParentChannel(channel);
 			Enclosure *enclosure = item->EnclosureByUUID(enclosureUUID);
+			if (enclosure == NULL) return;
 			
 			for (handler_t::iterator hIt = fHandler.begin(); hIt != fHandler.end(); hIt++) {
 				(*hIt)->EnclosureDownloadStarted(&feed, item, enclosure);
@@ -225,8 +232,13 @@ void FeedListener::MessageReceived(BMessage *msg) {
 			if (msg->FindString("enclosure", &enclosureUUID) != B_OK) return;
 
 			Channel *channel = feed.ChannelByUUID(channelUUID);
+			if (channel == NULL) return;
+			channel->ParentFeed(&feed);
 			Item *item = channel->ItemByUUID(itemUUID);
+			if (item == NULL) return;
+			item->ParentChannel(channel);
 			Enclosure *enclosure = item->EnclosureByUUID(enclosureUUID);
+			if (enclosure == NULL) return;
 
 			for (handler_t::iterator hIt = fHandler.begin(); hIt != fHandler.end(); hIt++) {
 				(*hIt)->EnclosureDownloadProgress(&feed, item, enclosure);
@@ -245,8 +257,13 @@ void FeedListener::MessageReceived(BMessage *msg) {
 			if (msg->FindString("enclosure", &enclosureUUID) != B_OK) return;
 			
 			Channel *channel = feed.ChannelByUUID(channelUUID);
+			if (channel == NULL) return;
+			channel->ParentFeed(&feed);
 			Item *item = channel->ItemByUUID(itemUUID);
+			if (item == NULL) return;
+			item->ParentChannel(channel);
 			Enclosure *enclosure = item->EnclosureByUUID(enclosureUUID);
+			if (enclosure == NULL) return;
 			
 			for (handler_t::iterator hIt = fHandler.begin(); hIt != fHandler.end(); hIt++) {
 				(*hIt)->EnclosureDownloadFinished(&feed, item, enclosure);
@@ -265,8 +282,13 @@ void FeedListener::MessageReceived(BMessage *msg) {
 			if (msg->FindString("enclosure", &enclosureUUID) != B_OK) return;
 			
 			Channel *channel = feed.ChannelByUUID(channelUUID);
+			if (channel == NULL) return;
+			channel->ParentFeed(&feed);
 			Item *item = channel->ItemByUUID(itemUUID);
+			if (item == NULL) return;
+			item->ParentChannel(channel);
 			Enclosure *enclosure = item->EnclosureByUUID(enclosureUUID);
+			if (enclosure == NULL) return;
 			
 			for (handler_t::iterator hIt = fHandler.begin(); hIt != fHandler.end(); hIt++) {
 				(*hIt)->EnclosureDownloadStatusChanged(&feed, item, enclosure);
@@ -282,6 +304,9 @@ void FeedListener::MessageReceived(BMessage *msg) {
 			if (msg->FindFlat("feed", &feed) != B_OK) return;
 			if (msg->FindString("channel", &channelUUID) != B_OK) return;
 			if (msg->FindRef("ref", &ref) != B_OK) return;
+			channel = feed.ChannelByUUID(channelUUID);
+			if (channel == NULL) return;
+			channel->ParentFeed(&feed);
 
 			for (handler_t::iterator hIt = fHandler.begin(); hIt != fHandler.end(); hIt++) {
 				(*hIt)->ChannelIconUpdated(&feed, channel, ref);
@@ -322,11 +347,15 @@ void FeedListener::StartListening(void) {
 };
 
 void FeedListener::StopListening(void) {
-	RemoveListener(fTarget);
-	fListening = false;
+	if (fListening == true) {
+		RemoveListener(fTarget);
+		fListening = false;
+	}
 };
 
 status_t FeedListener::SendMessage(BMessage *msg, BMessage *reply) {
+	if (msg == NULL) return B_BAD_VALUE;
+
 	status_t status = B_ERROR;
 	
 	if (fMsgr.IsValid() == true) {
@@ -356,6 +385,8 @@ status_t FeedListener::RefreshAllFeeds(void) {
 };
 
 status_t FeedListener::RefreshFeed(Feed *feed) {
+	if (feed == NULL) return B_BAD_VALUE;
+
 	BMessage refresh(FeedKit::Private::ToServer::ForceRefresh);
 	refresh.AddString("url", feed->URL());
 	
@@ -363,6 +394,8 @@ status_t FeedListener::RefreshFeed(Feed *feed) {
 };
 
 status_t FeedListener::MarkItemRead(Item *item) {
+	if (item == NULL) return B_BAD_VALUE;
+
 	BMessage markRead(FeedKit::Private::ToServer::MarkRead);
 	markRead.AddString("item", item->UUID());
 	
@@ -370,6 +403,8 @@ status_t FeedListener::MarkItemRead(Item *item) {
 };
 
 status_t FeedListener::RegisterFeed(const char *url, const char *name) {
+	if (url == NULL) return B_BAD_VALUE;
+
 	BMessage registerFeed(FeedKit::Private::ToServer::RegisterFeed);
 
 	registerFeed.AddString("url", url);
@@ -379,6 +414,8 @@ status_t FeedListener::RegisterFeed(const char *url, const char *name) {
 };
 
 status_t FeedListener::ChangeFeedSubscription(Feed *feed, bool subscribed) {
+	if (feed == NULL) return B_BAD_VALUE;
+
 	status_t result = B_OK;
 
 	if (feed->Subscribed() != subscribed) {
@@ -394,7 +431,10 @@ status_t FeedListener::ChangeFeedSubscription(Feed *feed, bool subscribed) {
 };
 
 const char *FeedListener::ChannelIconPath(Channel *channel) {
+	if (channel == NULL) return NULL;
+
 	const char *path = NULL;
+	fChannelIconPath = "";
 	BMessage reply;
 	BMessage getIcon(FeedKit::Private::ToServer::GetChannelIconPath);
 	getIcon.AddString("channel", channel->UUID());
@@ -402,10 +442,13 @@ const char *FeedListener::ChannelIconPath(Channel *channel) {
 	SendMessage(&getIcon, &reply);	
 
 	if (reply.what == FeedKit::Private::FromServer::ChannelIconPath) {
-		if (reply.FindString("path", &path) != B_OK) path = NULL;
+		if (reply.FindString("path", &path) == B_OK) {
+			fChannelIconPath = path;
+			return fChannelIconPath.String();
+		}
 	};
 	
-	return path;
+	return NULL;
 };
 
 feed_list_t FeedListener::Feeds(void) {
@@ -428,6 +471,8 @@ feed_list_t FeedListener::Feeds(void) {
 };
 
 status_t FeedListener::DownloadEnclosure(Item *item, Enclosure *enclosure, const char *path) {
+	if (item == NULL || enclosure == NULL || path == NULL) return B_BAD_VALUE;
+
 	BMessage reply;
 	BMessage downloadEnclosure(FeedKit::Private::ToServer::DownloadEnclosure);
 	downloadEnclosure.AddString("item", item->UUID());
@@ -443,6 +488,8 @@ status_t FeedListener::DownloadEnclosure(Item *item, Enclosure *enclosure, const
 };
 
 status_t FeedListener::CancelEnclosureDownload(Item *item, Enclosure *enclosure) {
+	if (item == NULL || enclosure == NULL) return B_BAD_VALUE;
+
 	BMessage cancelDownload(FeedKit::Private::ToServer::CancelEnclosureDownload);
 	cancelDownload.AddString("item", item->UUID());
 	cancelDownload.AddFlat("enclosure", enclosure);
@@ -453,11 +500,15 @@ status_t FeedListener::CancelEnclosureDownload(Item *item, Enclosure *enclosure)
 //#pragma mark Handler Subscription
 
 void FeedListener::AddHandler(FeedHandler *handler) {
-	fHandler.push_back(handler);
+	if (handler != NULL
+		&& std::find(fHandler.begin(), fHandler.end(), handler) == fHandler.end())
+		fHandler.push_back(handler);
 };
 
 void FeedListener::RemoveHandler(FeedHandler *handler) {
-	fHandler.erase(find(fHandler.begin(), fHandler.end(), handler));
+	handler_t::iterator found = std::find(fHandler.begin(), fHandler.end(), handler);
+	if (found != fHandler.end())
+		fHandler.erase(found);
 };
 
 //#pragma mark Private

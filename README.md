@@ -10,8 +10,10 @@ architecture on x86_gcc2 hybrid installations.
 > complete. The default core target now builds successfully on R1/beta6
 > x86_64, and the native startup/parser-loading/shutdown smoke test passes.
 > The bounded local RSS/Atom registration-and-refresh integration test also
-> passes natively on beta6. A dependency-free native unit suite now covers
-> stable UUID fixtures, model serialization, and download progress state.
+> passes natively on beta6. The dependency-free native unit suite has a
+> confirmed 75-check baseline covering stable UUID fixtures, model
+> serialization, and download progress state; expanded listener-safety checks
+> are awaiting native confirmation.
 
 See [DESIGN.md](DESIGN.md) for the full compatibility audit, technical
 findings, constraints, and acceptance criteria.
@@ -41,7 +43,7 @@ findings, constraints, and acceptance criteria.
 | R1/beta6 compatibility audit | Complete — 25 October 2026 | Audited the active Jam build, legacy makefiles, core library, server, parsers, clients, preflet, and tests against the beta6 SDK and package ecosystem. |
 | Restoration design | Complete — 25 October 2026 | Documented build blockers, correctness defects, dependency/API changes, compatibility constraints, staged goals, and release acceptance criteria in `DESIGN.md`. |
 | Native beta6 baseline | Complete — 25 October 2026 | User-confirmed successful default build of `libfeedkit.so`, `feed_server`, and the RSS/Atom parser add-ons on R1/beta6 x86_64. Build repairs covered malformed makefiles, dependencies, compiler/linker flags, fixed-width types, protected server access, modern curl callbacks, and repository-local linking. |
-| Core safety and compatibility | In progress — 26 October 2026 | Initial 64-bit serialization and ownership-adjacent fixes landed during build restoration. Integration testing exposed and fixed null Atom image handling and one-byte SHA-1 UUID formatting overflows without changing UUID values. A dependency-free native suite now locks representative Feed, Channel, Item, Content, and Enclosure UUIDs, exercises model flatten/unflatten round trips, and verifies copied and serialized download progress. Native confirmation and the remaining ownership and pointer-lifetime audit are next. |
+| Core safety and compatibility | In progress — 26 October 2026 | The dependency-free suite has a confirmed 75-check native baseline covering stable model UUIDs, flatten/unflatten round trips, and copied and serialized download progress. The next safety batch gives `FeedListener` stable icon-path storage, harmless unknown and duplicate handler operations, null-safe public calls, and guarded reconstruction of channel, item, and enclosure callbacks. Its expanded regression checks await native confirmation; server ownership remains next. |
 | Network and parser modernization | In progress — 26 October 2026 | Native beta6 smoke and integration tests pass, including RSS/Atom registration and forced refresh, parser discovery, clean shutdown, and safe handling of a missing feed. Feed downloads now use atomically created, unlink-on-open files in Haiku's system temporary directory instead of `tmpnam()`, and release temporary storage immediately after success or failure. Broader HTTP, TLS, cancellation, resume, and write-failure coverage remain. |
 | Package and lifecycle integration | Planned | Add package-aware paths and an HPKG workflow, then verify installation, discovery, startup, persistence, and removal. |
 | Optional client ports | Planned | Port clients independently after the core is stable; replace obsolete NetPositive and InfoPopper integrations where necessary. |
@@ -99,10 +101,9 @@ make clean
 make
 ```
 
-The native startup/parser-loading/shutdown smoke test and local RSS/Atom
-registration-and-refresh integration test are verified on R1/beta6 x86_64.
-The restored unit suite, packaging, and the secondary `x86` architecture are
-not yet validated.
+The unit, startup/parser-loading/shutdown smoke, and local RSS/Atom
+registration-and-refresh integration suites are verified on R1/beta6 x86_64.
+Packaging and the secondary `x86` architecture are not yet validated.
 
 ### Runtime smoke test
 

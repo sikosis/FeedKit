@@ -3,6 +3,7 @@
 
 #include <Looper.h>
 #include <Messenger.h>
+#include <String.h>
 
 #include <libfeedkit/FeedKitConstants.h>
 
@@ -57,6 +58,7 @@ namespace FeedKit {
 			
 			BMessenger			fMsgr;
 			BMessenger			fTarget;
+			BString				fChannelIconPath;
 			
 			handler_t			fHandler;
 	};
