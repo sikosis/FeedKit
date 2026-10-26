@@ -13,7 +13,7 @@ Source_src := \
 
 SRCS := $(Source_src)
 
-LIBS= be stdc++ curl
+LIBS= be stdc++ curl network
 LIBPATHS= /boot/home/config/lib
 SYSTEM_INCLUDE_PATHS= /boot/home/config/include
 LOCAL_INCLUDE_PATHS= ../../Server
