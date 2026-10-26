@@ -371,7 +371,6 @@ void FileRequest::Init(void) {
 	if (fOffset > 0) {
 		SET_CURL_OPTION(CURLOPT_RESUME_FROM_LARGE,
 			static_cast<curl_off_t>(fOffset));
-		fprintf(stderr, "FileRequest::Init() Will attempt to restart download at %i byte(s)\n", fOffset);
 	}
 
 #undef SET_CURL_OPTION
