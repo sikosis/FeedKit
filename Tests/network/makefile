@@ -8,7 +8,7 @@ TYPE= APP
 
 Source_src := \
 	Main.cpp \
-	../../Server/FileRequest.cpp \
+	FileRequestSource.cpp \
 #
 
 SRCS := $(Source_src)
