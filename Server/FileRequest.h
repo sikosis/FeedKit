@@ -39,6 +39,10 @@ class FileRequest {
 		time_t				Duration(void);
 		int32				Size(void);
 		entry_ref			Ref(void);
+		ssize_t				Read(void *buffer, size_t size);
+		status_t			ReleaseTemporaryStorage(void);
+		bool				UsesTemporaryStorage(void) const;
+		status_t			StorageStatus(void) const;
 		bool				Completed(void);
 		const char			*MIME(void);
 		
@@ -57,7 +61,10 @@ class FileRequest {
 		BString				fURL;
 		entry_ref			fRef;
 		BFile				fFile;
+		int					fTemporaryFD;
+		status_t			fStorageStatus;
 		CURL				*fCurl;
+		CURLcode			fCurlStatus;
 		time_t				fStart;
 		time_t				fEnd;
 		int32				fExpectedSize;

@@ -136,13 +136,7 @@ void FileDaemon::MessageReceived(BMessage *msg) {
 			thread_t::iterator tIt = fThreads.find(thread);
 			if (tIt != fThreads.end()) tIt->second = NULL;
 			
-			info_t::iterator iIt;
-			for (iIt = fRequests.begin(); iIt != fRequests.end(); iIt++) {
-				if ((*iIt) == info) {
-					delete info;
-					fRequests.erase(iIt);
-				};
-			}
+			delete info;
 
 		} break;
 	
@@ -285,22 +279,36 @@ int32 FileDaemon::WaitOnRequests(void *arg) {
 		
 			switch (result) {
 				case B_OK: {
-					if (info->finish) info->target->SendMessage(info->finish);
+					if (info->finish) {
+						info->target->SendMessage(info->finish);
+					} else {
+						info->request->ReleaseTemporaryStorage();
+					}
 				} break;
 				
 				case DownloadCancelled: {
-					if (info->cancel) info->target->SendMessage(info->cancel);
+					if (info->cancel) {
+						info->target->SendMessage(info->cancel);
+					} else {
+						info->request->ReleaseTemporaryStorage();
+					}
 				} break;
 				
 				default: {
-					if (info->error) info->target->SendMessage(info->error);
+					if (info->error) {
+						info->target->SendMessage(info->error);
+					} else {
+						info->request->ReleaseTemporaryStorage();
+					}
 				} break;
 			};
+		} else {
+			info->request->ReleaseTemporaryStorage();
 		};
 
 		BMessage requestComplete(kRequestComplete);
 		requestComplete.AddInt32("threadid", thread);
-		requestComplete.AddPointer("requestinfo", &info);
+		requestComplete.AddPointer("requestinfo", info);
 		
 		msgr.SendMessage(&requestComplete);
 	};

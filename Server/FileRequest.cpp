@@ -1,6 +1,8 @@
 #include "FileRequest.h"
 #include "FileRequestHandler.h"
 
+#include <FindDirectory.h>
+#include <Path.h>
 #include <String.h>
 
 #include <curl/curlver.h>
@@ -8,6 +10,8 @@
 #include <curl/easy.h>
 
 #include <stdlib.h>
+#include <string.h>
+#include <unistd.h>
 
 //#pragma mark RequestHandlerInfo
 
@@ -46,29 +50,62 @@ const int32 kMaxMallocIOSize = 1024 * 1024 * 10;	// 10 MB
 FileRequest::FileRequest(const char *url, entry_ref ref, BMessage progress, int32 offset)
 	: fURL(url),
 	fRef(ref),
+	fTemporaryFD(-1),
+	fStorageStatus(B_NO_INIT),
+	fCurl(NULL),
+	fCurlStatus(CURLE_OK),
 	fProgress(progress),
 	fOffset(offset) {
 
-	fFile.SetTo(&ref, B_READ_WRITE | B_CREATE_FILE);
+	fStorageStatus = fFile.SetTo(&ref, B_READ_WRITE | B_CREATE_FILE);
+	if (fStorageStatus == B_OK && fOffset > 0
+		&& fFile.Seek(fOffset, SEEK_SET) != fOffset)
+		fStorageStatus = B_FILE_ERROR;
 
 	Init();
 };
 
 FileRequest::FileRequest(const char *url, BMessage progress, int32 offset)
 	: fURL(url),
+	fTemporaryFD(-1),
+	fStorageStatus(B_NO_INIT),
+	fCurl(NULL),
+	fCurlStatus(CURLE_OK),
 	fProgress(progress),
 	fOffset(offset) {
-	
-	const char *path = tmpnam(NULL);
 
-	fFile.SetTo(path, B_READ_WRITE | B_CREATE_FILE);
-	get_ref_for_path(path, &fRef);
+	BPath path;
+	fStorageStatus = find_directory(B_SYSTEM_TEMP_DIRECTORY, &path);
+	if (fStorageStatus == B_OK)
+		fStorageStatus = path.Append("feedkit-XXXXXX");
+
+	if (fStorageStatus == B_OK) {
+		char *pathTemplate = strdup(path.Path());
+		if (pathTemplate == NULL) {
+			fStorageStatus = B_NO_MEMORY;
+		} else {
+			fTemporaryFD = mkstemp(pathTemplate);
+			if (fTemporaryFD < 0) {
+				fStorageStatus = B_FILE_ERROR;
+			} else if (::unlink(pathTemplate) != 0) {
+				::close(fTemporaryFD);
+				fTemporaryFD = -1;
+				fStorageStatus = B_FILE_ERROR;
+			} else {
+				fStorageStatus = B_OK;
+			}
+			free(pathTemplate);
+		}
+	}
 	
 	Init();
 };
 
 FileRequest::~FileRequest(void) {
-	curl_easy_cleanup(fCurl);
+	if (fCurl != NULL)
+		curl_easy_cleanup(fCurl);
+	if (fTemporaryFD >= 0)
+		::close(fTemporaryFD);
 	
 	for (handlerinfo_t::iterator rIt = fHandler.begin(); rIt != fHandler.end(); rIt++) {
 		delete (*rIt);
@@ -82,6 +119,13 @@ void FileRequest::AddHandler(FileRequestHandler *handler, void *data) {
 };
 
 status_t FileRequest::Start(void) {
+	if (fStorageStatus != B_OK || fCurl == NULL || fCurlStatus != CURLE_OK) {
+		if (fCurlStatus != CURLE_OK)
+			fprintf(stderr, "FileRequest::Start - curl setup failed: %s\n",
+				curl_easy_strerror(fCurlStatus));
+		return fStorageStatus != B_OK ? fStorageStatus : B_ERROR;
+	}
+
 	fStart = time(NULL);
 	status_t result = B_ERROR;
 	
@@ -91,8 +135,23 @@ status_t FileRequest::Start(void) {
 			fprintf(stderr, "FileRequest::Start - %s couldn't be resumed, restarting\n", fURL.String());
 			fOffset = 0;
 
-			Init();
-			result = Start();
+			status_t reset = B_OK;
+			if (fTemporaryFD >= 0) {
+				if (::ftruncate(fTemporaryFD, 0) != 0
+					|| ::lseek(fTemporaryFD, 0, SEEK_SET) < 0)
+					reset = B_FILE_ERROR;
+			} else {
+				reset = fFile.SetSize(0);
+				if (reset == B_OK && fFile.Seek(0, SEEK_SET) < 0)
+					reset = B_FILE_ERROR;
+			}
+
+			if (reset == B_OK) {
+				Init();
+				result = Start();
+			} else {
+				result = reset;
+			}
 		};
 		if (curlResult == CURLE_ABORTED_BY_CALLBACK) result = DownloadCancelled;
 	} else {
@@ -153,6 +212,50 @@ entry_ref FileRequest::Ref(void) {
 	return fRef;
 };
 
+ssize_t FileRequest::Read(void *buffer, size_t size) {
+	size_t total = 0;
+
+	if (fTemporaryFD >= 0) {
+		if (::lseek(fTemporaryFD, 0, SEEK_SET) < 0)
+			return B_FILE_ERROR;
+
+		while (total < size) {
+			ssize_t bytes = ::read(fTemporaryFD,
+				static_cast<char *>(buffer) + total, size - total);
+			if (bytes <= 0)
+				return total > 0 ? static_cast<ssize_t>(total) : bytes;
+			total += bytes;
+		}
+		return static_cast<ssize_t>(total);
+	}
+
+	while (total < size) {
+		ssize_t bytes = fFile.ReadAt(total,
+			static_cast<char *>(buffer) + total, size - total);
+		if (bytes <= 0)
+			return total > 0 ? static_cast<ssize_t>(total) : bytes;
+		total += bytes;
+	}
+	return static_cast<ssize_t>(total);
+};
+
+status_t FileRequest::ReleaseTemporaryStorage(void) {
+	if (fTemporaryFD >= 0) {
+		status_t result = ::close(fTemporaryFD) == 0 ? B_OK : B_FILE_ERROR;
+		fTemporaryFD = -1;
+		return result;
+	}
+	return B_OK;
+};
+
+bool FileRequest::UsesTemporaryStorage(void) const {
+	return fTemporaryFD >= 0;
+};
+
+status_t FileRequest::StorageStatus(void) const {
+	return fStorageStatus;
+};
+
 bool FileRequest::Completed(void) {
 	return fComplete;
 };
@@ -168,6 +271,11 @@ BMessage FileRequest::ProgressMessage(void) {
 //#pragma mark Private
 
 void FileRequest::Init(void) {
+	if (fCurl != NULL) {
+		curl_easy_cleanup(fCurl);
+		fCurl = NULL;
+	}
+
 	fStart = 0;
 	fEnd = -1;
 	fExpectedSize = 0;
@@ -176,26 +284,40 @@ void FileRequest::Init(void) {
 	fMIME = "";
 	fStartSent = false;
 	fCancelDownload = false;
+	fCurlStatus = CURLE_OK;
 	
 	fCurl = curl_easy_init();
-	
-	curl_easy_setopt(fCurl, CURLOPT_NOSIGNAL, TRUE);
-	curl_easy_setopt(fCurl, CURLOPT_URL, fURL.String());
-	curl_easy_setopt(fCurl, CURLOPT_WRITEFUNCTION, SaveData);
-	curl_easy_setopt(fCurl, CURLOPT_WRITEDATA, this);
-	curl_easy_setopt(fCurl, CURLOPT_HEADERFUNCTION, ParseHeader);
-	curl_easy_setopt(fCurl, CURLOPT_HEADERDATA, this);
-	curl_easy_setopt(fCurl, CURLOPT_FOLLOWLOCATION, true);
-	curl_easy_setopt(fCurl, CURLOPT_MAXREDIRS, 10);
-	curl_easy_setopt(fCurl, CURLOPT_NOPROGRESS, false);
-	curl_easy_setopt(fCurl, CURLOPT_XFERINFOFUNCTION, Progress);
-	curl_easy_setopt(fCurl, CURLOPT_XFERINFODATA, this);
+	if (fCurl == NULL)
+		return;
+
+#define SET_CURL_OPTION(option, value) \
+	do { \
+		CURLcode optionStatus = curl_easy_setopt(fCurl, option, value); \
+		if (fCurlStatus == CURLE_OK && optionStatus != CURLE_OK) \
+			fCurlStatus = optionStatus; \
+	} while (0)
+
+	SET_CURL_OPTION(CURLOPT_NOSIGNAL, 1L);
+	SET_CURL_OPTION(CURLOPT_URL, fURL.String());
+	SET_CURL_OPTION(CURLOPT_WRITEFUNCTION, SaveData);
+	SET_CURL_OPTION(CURLOPT_WRITEDATA, this);
+	SET_CURL_OPTION(CURLOPT_HEADERFUNCTION, ParseHeader);
+	SET_CURL_OPTION(CURLOPT_HEADERDATA, this);
+	SET_CURL_OPTION(CURLOPT_FOLLOWLOCATION, 1L);
+	SET_CURL_OPTION(CURLOPT_MAXREDIRS, 10L);
+	SET_CURL_OPTION(CURLOPT_FAILONERROR, 1L);
+	SET_CURL_OPTION(CURLOPT_CONNECTTIMEOUT, 30L);
+	SET_CURL_OPTION(CURLOPT_NOPROGRESS, 0L);
+	SET_CURL_OPTION(CURLOPT_XFERINFOFUNCTION, Progress);
+	SET_CURL_OPTION(CURLOPT_XFERINFODATA, this);
 	
 	if (fOffset > 0) {
-		curl_easy_setopt(fCurl, CURLOPT_RESUME_FROM_LARGE,
+		SET_CURL_OPTION(CURLOPT_RESUME_FROM_LARGE,
 			static_cast<curl_off_t>(fOffset));
 		fprintf(stderr, "FileRequest::Init() Will attempt to restart download at %i byte(s)\n", fOffset);
 	}
+
+#undef SET_CURL_OPTION
 };
 
 //#pragma mark LibCurl Hooks
@@ -232,8 +354,9 @@ size_t FileRequest::ParseHeader(void *header, size_t size, size_t length, void *
 
 size_t FileRequest::SaveData(void *data, size_t size, size_t length, void *ptr) {
 	FileRequest *us = reinterpret_cast<FileRequest *>(ptr);
-	
-	ssize_t written = us->fFile.Write(data, size * length);
+	size_t bytes = size * length;
+	ssize_t written = us->fTemporaryFD >= 0
+		? ::write(us->fTemporaryFD, data, bytes) : us->fFile.Write(data, bytes);
 	if (written < 0)
 		return 0;
 

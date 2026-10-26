@@ -112,7 +112,7 @@ void PrintFeed(Feed *feed) {
 #endif
 
 FeedServer::FeedServer(bool smokeTest, const char *integrationRSSURL,
-	const char *integrationAtomURL)
+	const char *integrationAtomURL, const char *integrationFailureURL)
 	: BApplication(smokeTest ? "application/x-vnd.beclan.feed_server.smoke"
 		: integrationRSSURL != NULL
 			? "application/x-vnd.beclan.feed_server.integration" : ServerSignature),
@@ -122,6 +122,8 @@ FeedServer::FeedServer(bool smokeTest, const char *integrationRSSURL,
 	 fIntegrationTestComplete(false),
 	 fIntegrationRSSURL(integrationRSSURL == NULL ? "" : integrationRSSURL),
 	 fIntegrationAtomURL(integrationAtomURL == NULL ? "" : integrationAtomURL),
+	 fIntegrationFailureURL(integrationFailureURL == NULL ? "" : integrationFailureURL),
+	 fIntegrationFailureRequested(false),
 	 fIntegrationTimeoutRunner(NULL),
 	 fFeedQuery(NULL),
 	 fEnclosureQuery(NULL),
@@ -1139,11 +1141,20 @@ void FeedServer::RecordIntegrationDownload(Feed *feed) {
 		refreshAtom.AddString("url", fIntegrationAtomURL.String());
 		PostMessage(&refreshAtom);
 	} else if (rssCount >= 2 && atomCount >= 2) {
-		fIntegrationTestComplete = true;
-		delete fIntegrationTimeoutRunner;
-		fIntegrationTimeoutRunner = NULL;
-		fprintf(stderr, "FeedServer integration test passed: RSS and Atom registered and refreshed\n");
-		PostMessage(B_QUIT_REQUESTED);
+		if (fIntegrationFailureURL.Length() > 0) {
+			fIntegrationFailureRequested = true;
+			fprintf(stderr, "FeedServer integration test: requesting expected missing feed\n");
+			BMessage missing(FeedKit::Private::ToServer::RegisterFeed);
+			missing.AddString("url", fIntegrationFailureURL.String());
+			missing.AddString("name", "FeedKit missing integration fixture");
+			PostMessage(&missing);
+		} else {
+			fIntegrationTestComplete = true;
+			delete fIntegrationTimeoutRunner;
+			fIntegrationTimeoutRunner = NULL;
+			fprintf(stderr, "FeedServer integration test passed: RSS and Atom registered and refreshed\n");
+			PostMessage(B_QUIT_REQUESTED);
+		}
 	}
 };
 
@@ -1282,6 +1293,7 @@ status_t FeedServer::HandleFeedDownloadStart(BMessage *msg) {
 	startNotify.AddFlat("feed", uIt->second);
 	
 	Broadcast(&startNotify);
+	delete progress;
 
 	return B_OK;
 };
@@ -1289,23 +1301,48 @@ status_t FeedServer::HandleFeedDownloadStart(BMessage *msg) {
 status_t FeedServer::HandleFeedDownloadError(BMessage *msg) {
 	FileRequest *request = NULL;
 	if (msg->FindPointer("filerequest", reinterpret_cast<void **>(&request)) != B_OK) return B_ERROR;
+	bool expectedFailure = fIntegrationTest && fIntegrationFailureRequested
+		&& strcmp(request->URL(), fIntegrationFailureURL.String()) == 0
+		&& request->UsesTemporaryStorage()
+		&& request->StorageStatus() == B_OK;
+	status_t releaseStatus = request->ReleaseTemporaryStorage();
+
+	urlfeed_t::iterator uIt = fURLFeeds.find(request->URL());
+	if (uIt == fURLFeeds.end()) {
+		const char *name = "";
+		msg->FindString("name", &name);
+		Feed feed(request->URL(), name);
+		ErrorDetails error(ErrorCode::UnableToDownloadFeed,
+			"Unable to download feed");
+		BMessage errorNotify(FeedKit::Private::FromServer::RegisterFeedError);
+		errorNotify.AddFlat("error", &error);
+		errorNotify.AddFlat("feed", &feed);
+		Broadcast(&errorNotify);
+	} else {
+		DownloadProgress *progress = ProgressFromRequest(request);
+		BMessage errorNotify(FeedKit::Private::FromServer::DownloadFeedError);
+		errorNotify.AddFlat("download", progress);
+		errorNotify.AddFlat("feed", uIt->second);
+		Broadcast(&errorNotify);
+		delete progress;
+	}
+
 	if (fIntegrationTest) {
-		FailIntegrationTest("a fixture download failed");
+		if (expectedFailure && releaseStatus == B_OK
+			&& !request->UsesTemporaryStorage()) {
+			fIntegrationTestComplete = true;
+			delete fIntegrationTimeoutRunner;
+			fIntegrationTimeoutRunner = NULL;
+			fprintf(stderr, "FeedServer integration test: expected download failure validated\n");
+			fprintf(stderr, "FeedServer integration test passed: RSS and Atom registered and refreshed\n");
+			PostMessage(B_QUIT_REQUESTED);
+			return B_OK;
+		}
+		FailIntegrationTest("a fixture download failed unexpectedly");
 		return B_ERROR;
 	}
 
-	urlfeed_t::iterator uIt = fURLFeeds.find(request->URL());
-	if (uIt == fURLFeeds.end()) return B_ERROR;
-
-	DownloadProgress *progress = ProgressFromRequest(request);
-
-	BMessage startNotify(FeedKit::Private::FromServer::DownloadFeedError);
-	startNotify.AddFlat("download", progress);
-	startNotify.AddFlat("feed", uIt->second);
-	
-	Broadcast(&startNotify);
-	
-	return B_OK;
+	return releaseStatus;
 };
 
 status_t FeedServer::HandleFeedDownloadFinish(BMessage *msg) {
@@ -1321,6 +1358,7 @@ status_t FeedServer::HandleFeedDownloadFinish(BMessage *msg) {
 
 	if (request->Size() == 0) {
 		fprintf(stderr, "File not downloaded successfully\n");
+		request->ReleaseTemporaryStorage();
 		if (fIntegrationTest)
 			FailIntegrationTest("a fixture download was empty");
 		
@@ -1344,12 +1382,18 @@ status_t FeedServer::HandleFeedDownloadFinish(BMessage *msg) {
 	finishNotify.AddFlat("download", progress);
 	finishNotify.AddFlat("feed", &notifyFeed);
 	Broadcast(&finishNotify);
-
-	entry_ref ref = request->Ref();
-	BFile file(&ref, B_READ_ONLY);
+	delete progress;
 
 	char *buffer = (char *)calloc(request->Size(), sizeof(char));
-	file.Read(buffer, request->Size());
+	ssize_t bytesRead = buffer == NULL ? B_NO_MEMORY
+		: request->Read(buffer, request->Size());
+	status_t releaseStatus = request->ReleaseTemporaryStorage();
+	if (bytesRead != request->Size() || releaseStatus != B_OK) {
+		free(buffer);
+		if (fIntegrationTest)
+			FailIntegrationTest("a downloaded fixture could not be read");
+		return B_IO_ERROR;
+	}
 				
 	Feed *refreshed = fParserManager->Parse(url, buffer, request->Size());
 	free(buffer);
@@ -2021,6 +2065,6 @@ status_t FeedServer::HandleFlattenFeeds(BMessage */*msg*/) {
 };
 
 status_t FeedServer::HandleIntegrationTimeout(BMessage */*msg*/) {
-	FailIntegrationTest("registration and refresh did not finish within 15 seconds");
+	FailIntegrationTest("registration, refresh, and failure checks did not finish within 15 seconds");
 	return B_OK;
 };

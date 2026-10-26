@@ -31,6 +31,7 @@ namespace FeedKit {
 	namespace ErrorCode {
 		enum code {
 			UnableToParseFeed = 'ecpf',			// Unable to parse the Feed
+			UnableToDownloadFeed = 'ecdf',		// Unable to download the Feed
 			InvalidItem = 'ecii',				// Invalid Item
 			InvalidEnclosure = 'ecie',			// Invalid Enclosure
 			InvalidEnclosurePath = 'ecip',		// Invalid Enclosure path
