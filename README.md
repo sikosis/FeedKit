@@ -43,7 +43,7 @@ findings, constraints, and acceptance criteria.
 | Native beta6 baseline | Complete — 25 October 2026 | User-confirmed successful default build of `libfeedkit.so`, `feed_server`, and the RSS/Atom parser add-ons on R1/beta6 x86_64. Build repairs covered malformed makefiles, dependencies, compiler/linker flags, fixed-width types, protected server access, modern curl callbacks, and repository-local linking. |
 | Core safety and compatibility | Complete — 26 October 2026 | The dependency-free suite passes all 113 checks natively on beta6. It covers stable UUIDs, serialization, download progress, listener safety, parent-owned model trees, deep copy and assignment, replacement-safe unflattening, independent refresh merges, download-request ownership, and complete server teardown. Native smoke and integration runs also pass. |
 | Network and parser modernization | Complete — 26 October 2026 | Native beta6 smoke and integration tests pass, including RSS/Atom registration and refresh, ordered package-aware parser discovery, clean shutdown, missing downloads, malformed-feed isolation, and two-process persistence/restart with stable UUIDs. The 55-check FileRequest suite covers local files and offline loopback HTTP. The 47-check parser suite covers valid, malformed, incomplete, discovered, duplicate-path, ISO-8859-1, and UTF-8 cases. Together with 113 model checks, all 215 focused checks pass. |
-| Package and lifecycle integration | In progress — 27 October 2026 | The staged layout and initial x86_64 HPKG generation pass natively. Explicit `StartListening()`-driven on-demand startup is selected and an installed-image check covers the packaged library, server, and parsers. Installed discovery, removal/user-data preservation, the HaikuPorter recipe, and secondary-architecture validation remain. |
+| Package and lifecycle integration | In progress — 27 October 2026 | The staged layout, x86_64 HPKG generation, activation, signature-based on-demand startup, packaged library/server/parser discovery, and clean shutdown pass natively. Removal/user-data preservation, the HaikuPorter recipe, and secondary-architecture validation remain. |
 | Optional client ports | Planned | Port clients independently after the core is stable; replace obsolete NetPositive and InfoPopper integrations where necessary. |
 | Beta6 release validation | Planned | Pass builds, tests, integration checks, and HPKG installation on x86_64 and the modern secondary `x86` architecture. |
 
@@ -188,6 +188,24 @@ signature and selects its packagefs entry as the MIME application hint. It
 then starts the server through `StartListening()`, checks the server and both
 parser image paths, and requests clean shutdowns of the server and listener.
 It does not install or uninstall packages.
+
+To verify package removal without modifying real feeds or preferences, create
+a uniquely named marker inside FeedKit's documented user settings directory:
+
+```sh
+make package-removal-prepare
+```
+
+Then uninstall the package and validate that packagefs removed the packaged
+files without deleting the marker:
+
+```sh
+pkgman uninstall -y feedkit
+make package-removal-check
+```
+
+The successful check removes only its own marker and state file. It never
+deletes the FeedKit settings directory, preferences, feeds, or enclosures.
 
 The current native build requires the PCRE development package. On Haiku,
 install it with:
