@@ -84,10 +84,12 @@ class FeedServer : public BApplication, public ObjectSource {
 			bool						fIntegrationFailureRequested;
 			BString						fIntegrationParseFailureURL;
 			bool						fIntegrationParseFailureRequested;
+			bool						fIntegrationPersistence;
+			bool						fIntegrationRestart;
 			std::map<BString, int32>	fIntegrationDownloads;
 			BMessageRunner				*fIntegrationTimeoutRunner;
 
-		void						LaunchFeed(entry_ref ref);
+		status_t				LaunchFeed(entry_ref ref, bool syndicate = true);
 		status_t					SyndicateURL(const char *url, const char *name = "");
 		FeedKit::DownloadProgress	*ProgressFromRequest(FileRequest *request);
 		void						MarkItems(FeedKit::Feed *feed, bool isCurrent, bool isNew);
@@ -112,9 +114,11 @@ class FeedServer : public BApplication, public ObjectSource {
 										int32 offset = 0);
 
 		void						CheckIndexes(void);
-		void						SaveFeeds(void);
+		status_t				SaveFeeds(void);
 		void						FailIntegrationTest(const char *reason);
 		void						RecordIntegrationDownload(FeedKit::Feed *feed);
+		void						RunIntegrationRestartTest(void);
+		status_t				CreateFeedStorage(FeedKit::Feed *feed);
 		void						ShutdownServices(void);
 
 		// Event Handlers

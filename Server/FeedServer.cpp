@@ -30,7 +30,9 @@
 #include <unistd.h>
 
 #include <errno.h>
+#include <limits.h>
 #include <set>
+#include <stdlib.h>
 #include <string.h>
 
 #include <curl/curl.h>
@@ -159,6 +161,10 @@ FeedServer::FeedServer(bool smokeTest, const char *integrationRSSURL,
 	 fIntegrationParseFailureURL(integrationParseFailureURL == NULL
 		? "" : integrationParseFailureURL),
 	 fIntegrationParseFailureRequested(false),
+	 fIntegrationPersistence(getenv("FEEDKIT_INTEGRATION_STORE") != NULL
+		&& getenv("FEEDKIT_INTEGRATION_STORE")[0] != '\0'),
+	 fIntegrationRestart(fIntegrationPersistence
+		&& getenv("FEEDKIT_INTEGRATION_RESTART") != NULL),
 	 fIntegrationTimeoutRunner(NULL),
 	 fFeedQuery(NULL),
 	 fEnclosureQuery(NULL),
@@ -169,6 +175,8 @@ FeedServer::FeedServer(bool smokeTest, const char *integrationRSSURL,
 	 fDownloadStatusRunner(NULL),
 	 fFlattenFeedRunner(NULL),
 	 fVolRoster(NULL) {
+	if (fIntegrationPersistence)
+		fSettingsPath.SetTo(getenv("FEEDKIT_INTEGRATION_STORE"));
 
 	AddCommonFilter(new ObjectUpdateFilter(this));
 	
@@ -303,10 +311,23 @@ void FeedServer::ReadyToRun(void) {
 	fCurlInitialized = true;
 
 	if (fIntegrationTest) {
-		fprintf(stderr, "FeedServer integration test: registering RSS and Atom fixtures\n");
 		BMessage integrationTimeout(kMsgIntegrationTimeout);
 		fIntegrationTimeoutRunner = new BMessageRunner(BMessenger(this),
 			&integrationTimeout, kIntegrationTimeout, 1);
+		if (fIntegrationRestart) {
+			RunIntegrationRestartTest();
+			return;
+		}
+
+		if (fIntegrationPersistence) {
+			status_t createStatus = create_directory(fSettingsPath.Path(), 0755);
+			if (createStatus != B_OK && createStatus != B_FILE_EXISTS) {
+				FailIntegrationTest("temporary persistence directory could not be created");
+				return;
+			}
+		}
+
+		fprintf(stderr, "FeedServer integration test: registering RSS and Atom fixtures\n");
 
 		BMessage rss(FeedKit::Private::ToServer::RegisterFeed);
 		rss.AddString("url", fIntegrationRSSURL.String());
@@ -585,15 +606,22 @@ void FeedServer::UpdateEnclosureProgress(FileRequest *req, Enclosure *enc, doubl
 
 //#pragma mark Private
 
-void FeedServer::LaunchFeed(entry_ref ref) {
+status_t FeedServer::LaunchFeed(entry_ref ref, bool syndicate) {
 	BFile file(&ref, B_READ_ONLY);
 	off_t size = B_ERROR;
 	char *buffer = NULL;
 	Feed *feed = NULL;
 	status_t error = B_ERROR;
 	
-	file.GetSize(&size);
+	status_t sizeStatus = file.GetSize(&size);
+	if (file.InitCheck() != B_OK || sizeStatus != B_OK || size <= 0
+		|| size > INT32_MAX) {
+		fprintf(stderr, "FeedServer::LaunchFeed(%s): Invalid feed file\n", ref.name);
+		return sizeStatus == B_OK ? B_BAD_DATA : sizeStatus;
+	}
 	buffer = (char *)calloc(size, sizeof(char));
+	if (buffer == NULL)
+		return B_NO_MEMORY;
 
 	error = file.Read(buffer, size);
 	
@@ -601,7 +629,7 @@ void FeedServer::LaunchFeed(entry_ref ref) {
 		fprintf(stderr, "FeedServer::LaunchFeed(%s): Could not read entire file (%i bytes) - aborting: %s\n", ref.name, size, strerror(error));
 		free(buffer);
 		
-		return;
+		return error;
 	};
 
 	feed = new Feed();
@@ -612,7 +640,7 @@ void FeedServer::LaunchFeed(entry_ref ref) {
 		free(buffer);
 		delete feed;
 		
-		return;
+		return error;
 	};
 	
 	fURLFeeds[feed->URL()] = feed;
@@ -638,7 +666,9 @@ void FeedServer::LaunchFeed(entry_ref ref) {
 	free(buffer);
 
 	// Only re-syndicate the URL if we're subscribed to it
-	if (feed->Subscribed() == true) SyndicateURL(feed->URL(), feed->Name());
+	if (syndicate && feed->Subscribed() == true)
+		SyndicateURL(feed->URL(), feed->Name());
+	return B_OK;
 };
 
 status_t FeedServer::SyndicateURL(const char *url, const char *name) {
@@ -1195,30 +1225,134 @@ void FeedServer::CheckIndexes(void) {
 		kAttrEnclosureUUID);
 };
 
-void FeedServer::SaveFeeds(void) {
+status_t FeedServer::CreateFeedStorage(Feed *feed) {
+	if (feed == NULL || fSettingsPath.InitCheck() != B_OK)
+		return B_BAD_VALUE;
+
+	BPath path(fSettingsPath);
+	if (!fIntegrationTest) {
+		if (path.Append("BeClan") != B_OK || path.Append("FeedKit") != B_OK
+			|| path.Append("Feed") != B_OK || path.Append("Data") != B_OK)
+			return B_BAD_VALUE;
+	}
+	if (path.Append(feed->UUID()) != B_OK)
+		return B_BAD_VALUE;
+
+	BFile file(path.Path(), B_CREATE_FILE | B_READ_WRITE | B_ERASE_FILE);
+	status_t status = file.InitCheck();
+	if (status != B_OK)
+		return status;
+
+	entry_ref ref;
+	status = get_ref_for_path(path.Path(), &ref);
+	if (status == B_OK)
+		fRefFeedUUID[feed->UUID()] = ref;
+	return status;
+};
+
+status_t FeedServer::SaveFeeds(void) {
 	fprintf(stderr, "FeedServer::SaveFeeds(): Flattening %i feeds to disk\n", fRefFeedUUID.size());
 
+	status_t result = B_OK;
 	ref_uuid_t::iterator rIt;
 	for (rIt = fRefFeedUUID.begin(); rIt != fRefFeedUUID.end(); rIt++) {
 		feed_uuid_t::iterator uIt = fFeedUUID.find(rIt->first);
 		
 		if (uIt == fFeedUUID.end()) {
 			fprintf(stderr, "FeedServer::SaveFeeds(): Could not find feed (%s) to save at %s\n", rIt->first.String(), rIt->second.name);
+			if (result == B_OK)
+				result = B_ENTRY_NOT_FOUND;
 			continue;
 		};
-				
-		BPath path(&rIt->second);		
+
 		BFile file(&rIt->second, B_READ_WRITE);
-		file.SetSize(0); // Erase contents;
-		
+		status_t status = file.InitCheck();
+		if (status == B_OK)
+			status = file.SetSize(0);
+		if (status != B_OK) {
+			if (result == B_OK)
+				result = status;
+			continue;
+		}
+
 		Feed *feed = uIt->second;
 		ssize_t length = feed->FlattenedSize();
+		if (length <= 0) {
+			if (result == B_OK)
+				result = B_BAD_DATA;
+			continue;
+		}
 		char *buffer = (char *)calloc(length, sizeof(char));
-		
-		feed->Flatten(buffer, length);
-		file.Write(buffer, length);
+		if (buffer == NULL) {
+			if (result == B_OK)
+				result = B_NO_MEMORY;
+			continue;
+		}
+
+		status = feed->Flatten(buffer, length);
+		if (status == B_OK && file.Write(buffer, length) != length)
+			status = B_IO_ERROR;
 		free(buffer);
+		if (status != B_OK && result == B_OK)
+			result = status;
 	};
+	return result;
+};
+
+void FeedServer::RunIntegrationRestartTest(void) {
+	BDirectory directory(fSettingsPath.Path());
+	if (directory.InitCheck() != B_OK) {
+		FailIntegrationTest("temporary persistence directory could not be reopened");
+		return;
+	}
+
+	entry_ref ref;
+	while (directory.GetNextRef(&ref) == B_OK) {
+		BEntry entry(&ref);
+		if (!entry.IsDirectory() && LaunchFeed(ref, false) != B_OK) {
+			FailIntegrationTest("a persisted feed could not be restored");
+			return;
+		}
+	}
+
+	Feed *rss = NULL;
+	Feed *atom = NULL;
+	urlfeed_t::iterator rssIt = fURLFeeds.find(fIntegrationRSSURL);
+	urlfeed_t::iterator atomIt = fURLFeeds.find(fIntegrationAtomURL);
+	if (rssIt != fURLFeeds.end())
+		rss = rssIt->second;
+	if (atomIt != fURLFeeds.end())
+		atom = atomIt->second;
+
+	bool valid = fURLFeeds.size() == 2 && fFeedUUID.size() == 2
+		&& fRefFeedUUID.size() == 2 && rss != NULL && atom != NULL
+		&& rss->ChannelCount() == 1 && atom->ChannelCount() == 1
+		&& rss->ChannelAt(0)->ItemCount() == 1
+		&& atom->ChannelAt(0)->ItemCount() == 1
+		&& strcmp(rss->ChannelAt(0)->Title(),
+			"FeedKit RSS integration fixture") == 0
+		&& strcmp(atom->ChannelAt(0)->Title(),
+			"FeedKit Atom integration fixture") == 0
+		&& strcmp(rss->ChannelAt(0)->ItemAt(0)->Title(),
+			"RSS fixture item") == 0
+		&& strcmp(atom->ChannelAt(0)->ItemAt(0)->Title(),
+			"Atom fixture item") == 0;
+	for (ref_uuid_t::iterator it = fRefFeedUUID.begin();
+		valid && it != fRefFeedUUID.end(); it++) {
+		if (strcmp(it->first.String(), it->second.name) != 0)
+			valid = false;
+	}
+
+	if (!valid) {
+		FailIntegrationTest("persisted feeds changed across restart");
+		return;
+	}
+
+	fIntegrationTestComplete = true;
+	delete fIntegrationTimeoutRunner;
+	fIntegrationTimeoutRunner = NULL;
+	fprintf(stderr, "FeedServer integration restart test passed: two feeds restored with stable UUIDs and content\n");
+	PostMessage(B_QUIT_REQUESTED);
 };
 
 void FeedServer::FailIntegrationTest(const char *reason) {
@@ -1578,6 +1712,10 @@ status_t FeedServer::HandleFeedDownloadFinish(BMessage *msg) {
 				FailIntegrationTest("a malformed feed altered registered feed state");
 				return B_ERROR;
 			}
+			if (fIntegrationPersistence && SaveFeeds() != B_OK) {
+				FailIntegrationTest("validated feeds could not be persisted");
+				return B_ERROR;
+			}
 			fIntegrationTestComplete = true;
 			delete fIntegrationTimeoutRunner;
 			fIntegrationTimeoutRunner = NULL;
@@ -1698,21 +1836,13 @@ status_t FeedServer::HandleFeedDownloadFinish(BMessage *msg) {
 	};
 	
 	if (wasNewFeed) {
-		if (!fIntegrationTest) {
-			entry_ref ref;
-
-			BPath path(fSettingsPath);
-			path.Append("BeClan");
-			path.Append("FeedKit");
-			path.Append("Feed");
-			path.Append("Data");
-			path.Append(feed->UUID());
-
-			// Create an entry in fRefFeedUUID
-			BFile file(path.Path(), B_CREATE_FILE | B_READ_WRITE);
-			get_ref_for_path(path.Path(), &ref);
-
-			fRefFeedUUID[feed->UUID()] = ref;
+		if (!fIntegrationTest || fIntegrationPersistence) {
+			status_t storageStatus = CreateFeedStorage(feed);
+			if (storageStatus != B_OK) {
+				if (fIntegrationTest)
+					FailIntegrationTest("a fixture persistence file could not be created");
+				return storageStatus;
+			}
 		}
 
 		// New feed, send a "Subscribe Complete"

@@ -9,7 +9,9 @@ atom="$root_dir/Tests/fixtures/integration.atom"
 missing="$root_dir/Tests/fixtures/does-not-exist.xml"
 malformed="$root_dir/Tests/fixtures/malformed.rss"
 log="$root_dir/build/integration-test.log"
+restart_log="$root_dir/build/integration-restart-test.log"
 server_pid=
+store=
 
 fail()
 {
@@ -27,6 +29,9 @@ cleanup()
 		kill "$server_pid" 2>/dev/null || true
 		wait "$server_pid" 2>/dev/null || true
 	fi
+	case "$store" in
+		"$root_dir"/build/integration-store-*) rm -rf -- "$store" ;;
+	esac
 }
 
 trap cleanup EXIT HUP INT TERM
@@ -42,12 +47,16 @@ done
 [ -f "$malformed" ] || fail "missing test input: $malformed"
 [ ! -e "$missing" ] || fail "failure fixture unexpectedly exists: $missing"
 
+store=$(mktemp -d "$root_dir/build/integration-store-XXXXXX") \
+	|| fail "could not create the isolated persistence store"
+
 LIBRARY_PATH="$root_dir/build${LIBRARY_PATH:+:$LIBRARY_PATH}"
 export LIBRARY_PATH
 
 : > "$log"
 echo "Starting local RSS/Atom registration and refresh test (log: $log)..."
-FEEDKIT_INTEGRATION_TEST=1 "$server" --integration-test \
+FEEDKIT_INTEGRATION_TEST=1 FEEDKIT_INTEGRATION_STORE="$store" \
+	"$server" --integration-test \
 	"file://$rss" "file://$atom" "file://$missing" \
 	"file://$malformed" > "$log" 2>&1 &
 server_pid=$!
@@ -84,6 +93,43 @@ grep -F 'FileDaemon lifecycle: requests released' "$log" >/dev/null 2>&1 \
 grep -F 'FeedServer lifecycle: services stopped' "$log" >/dev/null 2>&1 \
 	|| fail "the server did not release its runtime services"
 
+: > "$restart_log"
+echo "Restarting feed_server against the isolated persistence store..."
+FEEDKIT_INTEGRATION_TEST=1 FEEDKIT_INTEGRATION_STORE="$store" \
+	FEEDKIT_INTEGRATION_RESTART=1 "$server" --integration-test \
+	"file://$rss" "file://$atom" > "$restart_log" 2>&1 &
+server_pid=$!
+
+attempt=0
+while kill -0 "$server_pid" 2>/dev/null && [ "$attempt" -lt 20 ]; do
+	attempt=$((attempt + 1))
+	sleep 1
+done
+
+if kill -0 "$server_pid" 2>/dev/null; then
+	log="$restart_log"
+	fail "feed_server did not complete restart mode within 20 seconds"
+fi
+
+if ! wait "$server_pid"; then
+	server_pid=
+	log="$restart_log"
+	fail "feed_server restart mode returned a failure status"
+fi
+server_pid=
+
+grep -F 'FeedServer integration restart test passed: two feeds restored with stable UUIDs and content' \
+	"$restart_log" >/dev/null 2>&1 || {
+		log="$restart_log"
+		fail "persisted feeds were not restored intact"
+	}
+grep -F 'FeedServer lifecycle: services stopped' "$restart_log" >/dev/null 2>&1 \
+	|| {
+		log="$restart_log"
+		fail "the restarted server did not release its runtime services"
+	}
+
+cleanup
 trap - EXIT HUP INT TERM
 
-echo "Integration test passed: local RSS and Atom feeds registered, parsed, and refreshed; missing and malformed feeds failed safely without changing registered feeds; and the server shut down cleanly."
+echo "Integration test passed: local RSS and Atom feeds registered, refreshed, persisted, and restored with stable UUIDs; missing and malformed feeds failed safely; and both server runs shut down cleanly."

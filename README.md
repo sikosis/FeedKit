@@ -43,7 +43,7 @@ findings, constraints, and acceptance criteria.
 | Restoration design | Complete — 25 October 2026 | Documented build blockers, correctness defects, dependency/API changes, compatibility constraints, staged goals, and release acceptance criteria in `DESIGN.md`. |
 | Native beta6 baseline | Complete — 25 October 2026 | User-confirmed successful default build of `libfeedkit.so`, `feed_server`, and the RSS/Atom parser add-ons on R1/beta6 x86_64. Build repairs covered malformed makefiles, dependencies, compiler/linker flags, fixed-width types, protected server access, modern curl callbacks, and repository-local linking. |
 | Core safety and compatibility | Complete — 26 October 2026 | The dependency-free suite passes all 113 checks natively on beta6. It covers stable UUIDs, serialization, download progress, listener safety, parent-owned model trees, deep copy and assignment, replacement-safe unflattening, independent refresh merges, download-request ownership, and complete server teardown. Native smoke and integration runs also pass. |
-| Network and parser modernization | In progress — 26 October 2026 | Native beta6 smoke and integration tests pass, including RSS/Atom registration and forced refresh, parser discovery, clean shutdown, missing downloads, and malformed-feed isolation. The native 55-check FileRequest suite covers local files and offline loopback HTTP, including cancellation, resume, redirects, diagnostics, protocol rejection, and partial-write failures. The native 35-check parser add-on baseline covers valid, malformed, and incomplete RSS/Atom feeds. Parser discovery now searches local-build, user non-packaged, user packaged, system non-packaged, and system packaged locations in that order while ignoring duplicate parser names; an expanded 39-check suite awaits native verification. Persistence/restart remains. |
+| Network and parser modernization | In progress — 26 October 2026 | Native beta6 smoke and integration tests pass, including RSS/Atom registration and forced refresh, parser discovery, clean shutdown, missing downloads, and malformed-feed isolation. The native 55-check FileRequest suite covers local files and offline loopback HTTP, and the native 39-check parser suite covers valid, malformed, incomplete, discovered, and duplicate-path cases. Parser discovery searches local-build and modern user/system add-on locations in override order. The integration harness now persists both valid feeds to an isolated temporary store, restarts the server, and verifies stable UUID filenames and restored content without touching user settings; native verification is next. |
 | Package and lifecycle integration | Planned | Add package-aware paths and an HPKG workflow, then verify installation, discovery, startup, persistence, and removal. |
 | Optional client ports | Planned | Port clients independently after the core is stable; replace obsolete NetPositive and InfoPopper integrations where necessary. |
 | Beta6 release validation | Planned | Pass builds, tests, integration checks, and HPKG installation on x86_64 and the modern secondary `x86` architecture. |
@@ -116,9 +116,10 @@ make smoke
 
 The integration check exercises local RSS and Atom fixtures through the real
 downloader and parser add-ons, validates both initial registration and a forced
-refresh, confirms that missing and malformed local feeds fail safely without
-changing the valid registered feeds, and avoids writing fixture subscriptions
-into the user's feed store:
+refresh, confirms that missing and malformed local feeds fail safely, then
+persists and restores the valid feeds through a second server process. It uses
+an isolated temporary store and never writes fixture subscriptions into the
+user's feed store:
 
 ```sh
 make integration
