@@ -36,6 +36,7 @@ class FileDaemon : public BLooper, public FileRequestHandler {
 								BMessage *cancel = NULL);
 		request_t			ActiveRequests(void);
 		status_t			CancelDownload(const char *url);
+		status_t			Shutdown(void);
 		
 	private:
 		void				LaunchThread(void);
@@ -43,6 +44,7 @@ class FileDaemon : public BLooper, public FileRequestHandler {
 	
 		uint32				fMaxThreads;
 		BMessageRunner		*fThreadPoolRunner;
+		bool				fShuttingDown;
 
 		info_t				fRequests;
 		thread_t			fThreads;

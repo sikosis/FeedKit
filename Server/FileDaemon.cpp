@@ -66,19 +66,31 @@ const int32 kGetRequest = 'fdgr';
 const int32 kRequestComplete = 'fdgc';
 const int32 kThreadComplete = 'fdtc';
 const int32 kCheckPool = 'fdaw';
+const int32 kShutdown = 'fdsd';
 
 //#pragma mark Constructor
 
 FileDaemon::FileDaemon(uint32 maxThreads)
 	: BLooper("FileDaemon"),
-	fMaxThreads(maxThreads) {
+	fMaxThreads(maxThreads),
+	fThreadPoolRunner(NULL),
+	fShuttingDown(false) {
 	
 	Run();
 	
-	fThreadPoolRunner = new BMessageRunner(BMessenger(this), new BMessage(kCheckPool), kPoolTime);
+	BMessage checkPool(kCheckPool);
+	fThreadPoolRunner = new BMessageRunner(BMessenger(this), &checkPool, kPoolTime);
 };
 
 FileDaemon::~FileDaemon(void) {
+	delete fThreadPoolRunner;
+
+	for (info_t::iterator rIt = fRequests.begin(); rIt != fRequests.end(); rIt++)
+		delete *rIt;
+	for (thread_t::iterator tIt = fThreads.begin(); tIt != fThreads.end(); tIt++) {
+		if (tIt->second != NULL)
+			delete tIt->second;
+	}
 };
 
 //#pragma mark BLooper Hooks
@@ -86,6 +98,8 @@ FileDaemon::~FileDaemon(void) {
 void FileDaemon::MessageReceived(BMessage *msg) {
 	switch (msg->what) {
 		case kCheckPool: {
+			if (fShuttingDown) return;
+
 			// A new thread will be launched if...
 			//	- There's a request and no threads
 			//	- The thread pool isn't full and the pool is working at 100% efficiency			
@@ -107,6 +121,13 @@ void FileDaemon::MessageReceived(BMessage *msg) {
 			
 			thread_t::iterator tIt = fThreads.find(thread);
 			if (tIt == fThreads.end()) return;
+
+			if (fShuttingDown) {
+				BMessage reply(B_REPLY);
+				reply.AddBool("continue", false);
+				msg->SendReply(&reply);
+				return;
+			}
 			
 			if (fRequests.empty() == true) {
 				BMessage reply(B_REPLY);
@@ -150,6 +171,26 @@ void FileDaemon::MessageReceived(BMessage *msg) {
 				fThreads.erase(tIt);
 			};
 		} break;
+
+		case kShutdown: {
+			fShuttingDown = true;
+			delete fThreadPoolRunner;
+			fThreadPoolRunner = NULL;
+			for (info_t::iterator rIt = fRequests.begin();
+				rIt != fRequests.end(); rIt++) {
+				(*rIt)->request->ReleaseNetworkResources();
+				(*rIt)->request->ReleaseTemporaryStorage();
+			}
+
+			BMessage reply(B_REPLY);
+			for (thread_t::iterator tIt = fThreads.begin();
+				tIt != fThreads.end(); tIt++) {
+				reply.AddInt32("thread", tIt->first);
+				if (tIt->second != NULL)
+					tIt->second->request->Cancel();
+			}
+			msg->SendReply(&reply);
+		} break;
 		default: {
 			BLooper::MessageReceived(msg);
 		};
@@ -174,6 +215,14 @@ void FileDaemon::DownloadStarted(FileRequest *request, void *data) {
 
 status_t FileDaemon::AddRequest(FileRequest *request, int32 priority, BMessenger *target,
 	BMessage *start, BMessage *finish, BMessage *error, BMessage *cancel) {
+	if (request == NULL)
+		return B_BAD_VALUE;
+	if (!Lock())
+		return B_ERROR;
+	if (fShuttingDown) {
+		Unlock();
+		return B_NOT_ALLOWED;
+	}
 
 	RequestInfo *info = new RequestInfo(request, priority, target, start, finish, error, cancel);
 	request->AddHandler(this, info);
@@ -181,26 +230,35 @@ status_t FileDaemon::AddRequest(FileRequest *request, int32 priority, BMessenger
 	fRequests.push_back(info);
 	sort(fRequests.begin(), fRequests.end());
 
-	if (priority >= kPriorityLaunchThreshold) BMessenger(this).SendMessage(new BMessage(kCheckPool));
+	if (priority >= kPriorityLaunchThreshold) {
+		BMessage checkPool(kCheckPool);
+		BMessenger(this).SendMessage(&checkPool);
+	}
+	Unlock();
 
 	return B_OK;
 };
 
 request_t FileDaemon::ActiveRequests(void) {
 	request_t active;
+	if (!Lock())
+		return active;
+
 	thread_t::iterator tIt;
 
 	for (tIt = fThreads.begin(); tIt != fThreads.end(); tIt++) {
 		if (tIt->second != NULL) active.push_back(tIt->second->request);
 	};
+	Unlock();
 	
 	return active;
 };
 
 status_t FileDaemon::CancelDownload(const char *url) {
-	bool found = false;
+	if (url == NULL) return B_BAD_VALUE;
+	if (!Lock()) return B_ERROR;
 
-	debugger("CancelDownload...");
+	bool found = false;
 
 	for (info_t::iterator rIt = fRequests.begin(); rIt != fRequests.end(); rIt++) {
 		FileRequest *request = (*rIt)->request;
@@ -229,8 +287,27 @@ status_t FileDaemon::CancelDownload(const char *url) {
 			};
 		};
 	};
+	Unlock();
 	
 	return (found == true ? B_OK : B_ERROR);
+};
+
+status_t FileDaemon::Shutdown(void) {
+	BMessenger messenger(this);
+	BMessage shutdown(kShutdown);
+	BMessage reply;
+	status_t result = messenger.SendMessage(&shutdown, &reply);
+	if (result != B_OK)
+		return result;
+
+	thread_id thread;
+	for (int32 i = 0; reply.FindInt32("thread", i, &thread) == B_OK; i++) {
+		status_t threadResult;
+		wait_for_thread(thread, &threadResult);
+	}
+
+	messenger.SendMessage(B_QUIT_REQUESTED);
+	return B_OK;
 };
 
 //#pragma mark Private

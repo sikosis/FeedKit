@@ -8,6 +8,7 @@
 
 #include <curl/curl.h>
 
+#include <atomic>
 #include <vector>
 
 class FileRequestHandler;
@@ -40,6 +41,7 @@ class FileRequest {
 		int32				Size(void);
 		entry_ref			Ref(void);
 		ssize_t				Read(void *buffer, size_t size);
+		void				ReleaseNetworkResources(void);
 		status_t			ReleaseTemporaryStorage(void);
 		bool				UsesTemporaryStorage(void) const;
 		status_t			StorageStatus(void) const;
@@ -74,7 +76,7 @@ class FileRequest {
 		BMessage			fProgress;
 		bool				fStartSent;
 		int32				fOffset;
-		bool				fCancelDownload;
+		std::atomic<bool>	fCancelDownload;
 		
 		handlerinfo_t		fHandler;
 };

@@ -123,7 +123,9 @@ status_t FileRequest::Start(void) {
 		if (fCurlStatus != CURLE_OK)
 			fprintf(stderr, "FileRequest::Start - curl setup failed: %s\n",
 				curl_easy_strerror(fCurlStatus));
-		return fStorageStatus != B_OK ? fStorageStatus : B_ERROR;
+		status_t result = fStorageStatus != B_OK ? fStorageStatus : B_ERROR;
+		ReleaseNetworkResources();
+		return result;
 	}
 
 	fStart = time(NULL);
@@ -160,12 +162,13 @@ status_t FileRequest::Start(void) {
 	
 	fEnd = time(NULL);
 	fComplete = true;
+	ReleaseNetworkResources();
 	
 	return result;
 };
 
 void FileRequest::Cancel(void) {
-	fCancelDownload = true;	
+	fCancelDownload.store(true);
 };
 
 const char *FileRequest::URL(void) {
@@ -239,6 +242,13 @@ ssize_t FileRequest::Read(void *buffer, size_t size) {
 	return static_cast<ssize_t>(total);
 };
 
+void FileRequest::ReleaseNetworkResources(void) {
+	if (fCurl != NULL) {
+		curl_easy_cleanup(fCurl);
+		fCurl = NULL;
+	}
+};
+
 status_t FileRequest::ReleaseTemporaryStorage(void) {
 	if (fTemporaryFD >= 0) {
 		status_t result = ::close(fTemporaryFD) == 0 ? B_OK : B_FILE_ERROR;
@@ -283,7 +293,7 @@ void FileRequest::Init(void) {
 	fSize = 0;
 	fMIME = "";
 	fStartSent = false;
-	fCancelDownload = false;
+	fCancelDownload.store(false);
 	fCurlStatus = CURLE_OK;
 	
 	fCurl = curl_easy_init();
@@ -385,6 +395,6 @@ int FileRequest::Progress(void *data, curl_off_t downTotal, curl_off_t downNow,
 	};
 	
 
-	return (us->fCancelDownload == true) ? 1 : 0;
+	return us->fCancelDownload.load() ? 1 : 0;
 };
 

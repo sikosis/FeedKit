@@ -75,6 +75,8 @@ class FeedServer : public BApplication, public ObjectSource {
 			bool						fIntegrationTest;
 			bool						fIntegrationTestFailed;
 			bool						fIntegrationTestComplete;
+			bool						fCurlInitialized;
+			bool						fServicesStopped;
 			BString						fIntegrationRSSURL;
 			BString						fIntegrationAtomURL;
 			BString						fIntegrationFailureURL;
@@ -110,6 +112,7 @@ class FeedServer : public BApplication, public ObjectSource {
 		void						SaveFeeds(void);
 		void						FailIntegrationTest(const char *reason);
 		void						RecordIntegrationDownload(FeedKit::Feed *feed);
+		void						ShutdownServices(void);
 
 		// Event Handlers
 		status_t					HandleCheckDownloads(BMessage *msg);
@@ -159,7 +162,6 @@ class FeedServer : public BApplication, public ObjectSource {
 		channel_icon_t				fChannelIcon;
 			
 		SettingsFile				*fSettings;
-		feedsetting_t				*fFeeds;
 		listener_t					fListeners;
 		
 		int32						fRefresh;

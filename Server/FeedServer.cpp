@@ -120,6 +120,8 @@ FeedServer::FeedServer(bool smokeTest, const char *integrationRSSURL,
 	 fIntegrationTest(integrationRSSURL != NULL && integrationAtomURL != NULL),
 	 fIntegrationTestFailed(false),
 	 fIntegrationTestComplete(false),
+	 fCurlInitialized(false),
+	 fServicesStopped(false),
 	 fIntegrationRSSURL(integrationRSSURL == NULL ? "" : integrationRSSURL),
 	 fIntegrationAtomURL(integrationAtomURL == NULL ? "" : integrationAtomURL),
 	 fIntegrationFailureURL(integrationFailureURL == NULL ? "" : integrationFailureURL),
@@ -130,7 +132,7 @@ FeedServer::FeedServer(bool smokeTest, const char *integrationRSSURL,
 	 fParserManager(NULL),
 	 fFeedDaemon(NULL),
 	 fSettings(NULL),
-	 fFeeds(NULL),
+	 fRefresh(kDefaultRefresh),
 	 fDownloadStatusRunner(NULL),
 	 fFlattenFeedRunner(NULL),
 	 fVolRoster(NULL) {
@@ -198,20 +200,14 @@ FeedServer::FeedServer(bool smokeTest, const char *integrationRSSURL,
 };
 
 FeedServer::~FeedServer(void) {
+	ShutdownServices();
+
 	if (!fIntegrationTest)
 		SaveFeeds();
 
 	fURLFeeds.clear();
 		
-	refresh_t::iterator reIt;
-	for (reIt = fRefreshRunners.begin(); reIt != fRefreshRunners.end(); reIt++) {
-		delete reIt->second;
-	};
-	
 	delete fParserManager;
-	delete fDownloadStatusRunner;
-	delete fFlattenFeedRunner;
-	delete fIntegrationTimeoutRunner;
 	delete fSettings;
 };
 
@@ -238,17 +234,29 @@ void FeedServer::ReadyToRun(void) {
 	if (fSmokeTest)
 		fprintf(stderr, "FeedServer smoke test: entering ReadyToRun\n");
 
+	BMessage flattenFeeds(kMsgFlattenFeeds);
 	fFlattenFeedRunner = new BMessageRunner(BMessenger(this),
-		new BMessage(kMsgFlattenFeeds), kFlattenFeedInterval);
+		&flattenFeeds, kFlattenFeedInterval);
 	if (fSmokeTest)
 		fprintf(stderr, "FeedServer smoke test: flatten runner ready\n");
 
-	curl_global_init(CURL_GLOBAL_NOTHING);
+	CURLcode curlStatus = curl_global_init(CURL_GLOBAL_DEFAULT);
+	if (curlStatus != CURLE_OK) {
+		fprintf(stderr, "FeedServer::ReadyToRun(): curl initialization failed: %s\n",
+			curl_easy_strerror(curlStatus));
+		if (fIntegrationTest)
+			FailIntegrationTest("curl initialization failed");
+		else
+			PostMessage(B_QUIT_REQUESTED);
+		return;
+	}
+	fCurlInitialized = true;
 
 	if (fIntegrationTest) {
 		fprintf(stderr, "FeedServer integration test: registering RSS and Atom fixtures\n");
+		BMessage integrationTimeout(kMsgIntegrationTimeout);
 		fIntegrationTimeoutRunner = new BMessageRunner(BMessenger(this),
-			new BMessage(kMsgIntegrationTimeout), kIntegrationTimeout, 1);
+			&integrationTimeout, kIntegrationTimeout, 1);
 
 		BMessage rss(FeedKit::Private::ToServer::RegisterFeed);
 		rss.AddString("url", fIntegrationRSSURL.String());
@@ -288,7 +296,8 @@ void FeedServer::ReadyToRun(void) {
 	if (fSmokeTest)
 		fprintf(stderr, "FeedServer smoke test: indexes checked\n");
 
-	fDownloadStatusRunner = new BMessageRunner(BMessenger(this), new BMessage(kMsgCheckDownloads),
+	BMessage checkDownloads(kMsgCheckDownloads);
+	fDownloadStatusRunner = new BMessageRunner(BMessenger(this), &checkDownloads,
 		kDownloadStatusInterval);
 	if (fSmokeTest)
 		fprintf(stderr, "FeedServer smoke test: download runner ready\n");
@@ -311,10 +320,12 @@ void FeedServer::ReadyToRun(void) {
 		volumes.push_back(vol);
 	};
 
+	BMessage channelQueryMessage(kMsgQueryChannel);
 	fFeedQuery = new QueryLooper(kPredicateChannel, volumes, "Feed Query", this,
-		new BMessage(kMsgQueryChannel));
+		&channelQueryMessage);
+	BMessage enclosureQueryMessage(kMsgQueryEnclosure);
 	fEnclosureQuery = new QueryLooper(kPredicateEnclosure, volumes, "Enclosure Query", this,
-		new BMessage(kMsgQueryEnclosure));
+		&enclosureQueryMessage);
 
 	// Create the flattened feed directory
 	BDirectory dir(fSettingsPath.Path());
@@ -368,9 +379,7 @@ bool FeedServer::QuitRequested(void) {
 	if (!fIntegrationTest)
 		StopAutoStartClients();
 
-	BMessenger(fFeedDaemon).SendMessage(B_QUIT_REQUESTED);
-
-	curl_global_cleanup();
+	ShutdownServices();
 	if (fSmokeTest)
 		fprintf(stderr, "FeedServer smoke test: QuitRequested complete\n");
 
@@ -380,6 +389,63 @@ bool FeedServer::QuitRequested(void) {
 bool FeedServer::IntegrationTestPassed(void) const {
 	return fIntegrationTest && fIntegrationTestComplete
 		&& !fIntegrationTestFailed;
+};
+
+void FeedServer::ShutdownServices(void) {
+	if (fServicesStopped)
+		return;
+	fServicesStopped = true;
+	bool downloadsStopped = true;
+
+	delete fDownloadStatusRunner;
+	fDownloadStatusRunner = NULL;
+	delete fFlattenFeedRunner;
+	fFlattenFeedRunner = NULL;
+	delete fIntegrationTimeoutRunner;
+	fIntegrationTimeoutRunner = NULL;
+
+	for (refresh_t::iterator reIt = fRefreshRunners.begin();
+		reIt != fRefreshRunners.end(); reIt++) {
+		delete reIt->second;
+	}
+	fRefreshRunners.clear();
+
+	if (fVolRoster != NULL) {
+		fVolRoster->StopWatching();
+		delete fVolRoster;
+		fVolRoster = NULL;
+	}
+
+	if (fFeedQuery != NULL) {
+		if (fFeedQuery->Lock())
+			fFeedQuery->Quit();
+		fFeedQuery = NULL;
+	}
+	if (fEnclosureQuery != NULL) {
+		if (fEnclosureQuery->Lock())
+			fEnclosureQuery->Quit();
+		fEnclosureQuery = NULL;
+	}
+
+	if (fFeedDaemon != NULL) {
+		status_t result = fFeedDaemon->Shutdown();
+		if (result != B_OK) {
+			downloadsStopped = false;
+			fprintf(stderr, "FeedServer::ShutdownServices(): downloader shutdown failed: %s\n",
+				strerror(result));
+		}
+		fFeedDaemon = NULL;
+	}
+
+	if (fCurlInitialized && downloadsStopped) {
+		curl_global_cleanup();
+		fCurlInitialized = false;
+	}
+
+	if (downloadsStopped)
+		fprintf(stderr, "FeedServer lifecycle: services stopped\n");
+	else
+		fprintf(stderr, "FeedServer lifecycle: service shutdown incomplete\n");
 };
 
 //#pragma mark ObjectSource Hooks

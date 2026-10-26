@@ -97,10 +97,10 @@ ParserManager::ParserManager(path_t paths) {
 ParserManager::~ParserManager(void) {
 	parser_t::iterator pIt;
 	for (pIt = 	fParsers.begin(); pIt != fParsers.end(); pIt++) {
-		const char *name = pIt->second->Name();
+		BString name(pIt->second->Name());
 		delete pIt->second;
 		
-		fprintf(stderr, "Unloading %s (%i): ", name, pIt->first);
+		fprintf(stderr, "Unloading %s (%i): ", name.String(), pIt->first);
 		status_t unload = unload_add_on(pIt->first);
 		fprintf(stderr, "%s\n", strerror(unload));
 	};
@@ -174,7 +174,11 @@ void ParserManager::LoadAddons(const char *path) {
 			if (status == B_OK) {
 			
 				BMessage settings;
-				fParsers[image] = instantiate(settings);
+				FeedParser *parser = instantiate(settings);
+				if (parser != NULL)
+					fParsers[image] = parser;
+				else
+					unload_add_on(image);
 			} else {
 				unload_add_on(image);
 			};
