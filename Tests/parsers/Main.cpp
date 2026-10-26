@@ -180,6 +180,53 @@ CheckIncompleteAtom(FeedParser *parser)
 	delete feed;
 }
 
+static void
+CheckEncodedRSS(FeedParser *parser)
+{
+	const char data[] =
+		"<?xml version=\"1.0\" encoding=\"ISO-8859-1\"?>"
+		"<rss version=\"2.0\"><channel><title>Caf\xe9</title>"
+		"<item><title>Cr\xe8me br\xfbl\xe9" "e</title></item>"
+		"</channel></rss>";
+	int32 size = sizeof(data) - 1;
+	Check(parser->HandlesFeed("memory://encoded.rss", data, size) > 0.0f,
+		"RSS parser rejected an ISO-8859-1 feed");
+	Feed *feed = parser->ParseFeed("memory://encoded.rss", data, size);
+	Check(feed != NULL, "RSS parser failed an ISO-8859-1 feed");
+	Channel *channel = feed == NULL ? NULL : feed->ChannelAt(0);
+	Check(channel != NULL && strcmp(channel->Title(), "Caf\xc3\xa9") == 0,
+		"RSS parser did not normalize an ISO-8859-1 channel title");
+	Check(channel != NULL && channel->ItemCount() == 1
+		&& strcmp(channel->ItemAt(0)->Title(),
+			"Cr\xc3\xa8me br\xc3\xbbl\xc3\xa9" "e") == 0,
+		"RSS parser did not normalize an ISO-8859-1 item title");
+	delete feed;
+}
+
+static void
+CheckEncodedAtom(FeedParser *parser)
+{
+	const char data[] =
+		"<?xml version=\"1.0\" encoding=\"UTF-8\"?>"
+		"<feed xmlns=\"http://www.w3.org/2005/Atom\">"
+		"<title>\xe6\x97\xa5\xe6\x9c\xac</title><entry>"
+		"<title>\xe6\x9b\xb4\xe6\x96\xb0</title></entry></feed>";
+	int32 size = sizeof(data) - 1;
+	Check(parser->HandlesFeed("memory://encoded.atom", data, size) > 0.0f,
+		"Atom parser rejected a UTF-8 feed");
+	Feed *feed = parser->ParseFeed("memory://encoded.atom", data, size);
+	Check(feed != NULL, "Atom parser failed a UTF-8 feed");
+	Channel *channel = feed == NULL ? NULL : feed->ChannelAt(0);
+	Check(channel != NULL
+		&& strcmp(channel->Title(), "\xe6\x97\xa5\xe6\x9c\xac") == 0,
+		"Atom parser changed a UTF-8 channel title");
+	Check(channel != NULL && channel->ItemCount() == 1
+		&& strcmp(channel->ItemAt(0)->Title(),
+			"\xe6\x9b\xb4\xe6\x96\xb0") == 0,
+		"Atom parser changed a UTF-8 item title");
+	delete feed;
+}
+
 int
 main(int argc, char **argv)
 {
@@ -207,6 +254,7 @@ main(int argc, char **argv)
 		CheckMalformedFeed(rss.parser, "memory://malformed.rss",
 			"<rss><channel><title>broken</channel>");
 		CheckIncompleteRSS(rss.parser);
+		CheckEncodedRSS(rss.parser);
 	}
 	if (atom.parser != NULL && atomData != NULL) {
 		CheckValidFeed(atom.parser, "memory://integration.atom", atomData,
@@ -214,6 +262,7 @@ main(int argc, char **argv)
 		CheckMalformedFeed(atom.parser, "memory://malformed.atom",
 			"<feed><title>broken</feed>");
 		CheckIncompleteAtom(atom.parser);
+		CheckEncodedAtom(atom.parser);
 	}
 
 	delete[] rssData;
