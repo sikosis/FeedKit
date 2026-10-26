@@ -141,7 +141,8 @@ void PrintFeed(Feed *feed) {
 #endif
 
 FeedServer::FeedServer(bool smokeTest, const char *integrationRSSURL,
-	const char *integrationAtomURL, const char *integrationFailureURL)
+	const char *integrationAtomURL, const char *integrationFailureURL,
+	const char *integrationParseFailureURL)
 	: BApplication(smokeTest ? "application/x-vnd.beclan.feed_server.smoke"
 		: integrationRSSURL != NULL
 			? "application/x-vnd.beclan.feed_server.integration" : ServerSignature),
@@ -155,6 +156,9 @@ FeedServer::FeedServer(bool smokeTest, const char *integrationRSSURL,
 	 fIntegrationAtomURL(integrationAtomURL == NULL ? "" : integrationAtomURL),
 	 fIntegrationFailureURL(integrationFailureURL == NULL ? "" : integrationFailureURL),
 	 fIntegrationFailureRequested(false),
+	 fIntegrationParseFailureURL(integrationParseFailureURL == NULL
+		? "" : integrationParseFailureURL),
+	 fIntegrationParseFailureRequested(false),
 	 fIntegrationTimeoutRunner(NULL),
 	 fFeedQuery(NULL),
 	 fEnclosureQuery(NULL),
@@ -1275,7 +1279,8 @@ void FeedServer::RecordIntegrationDownload(Feed *feed) {
 		BMessage refreshAtom(FeedKit::Private::ToServer::ForceRefresh);
 		refreshAtom.AddString("url", fIntegrationAtomURL.String());
 		PostMessage(&refreshAtom);
-	} else if (rssCount >= 2 && atomCount >= 2) {
+	} else if (rssCount >= 2 && atomCount >= 2
+		&& !fIntegrationFailureRequested) {
 		if (fIntegrationFailureURL.Length() > 0) {
 			fIntegrationFailureRequested = true;
 			fprintf(stderr, "FeedServer integration test: requesting expected missing feed\n");
@@ -1470,12 +1475,21 @@ status_t FeedServer::HandleFeedDownloadError(BMessage *msg) {
 	if (fIntegrationTest) {
 		if (expectedFailure && releaseStatus == B_OK
 			&& !request->UsesTemporaryStorage()) {
-			fIntegrationTestComplete = true;
-			delete fIntegrationTimeoutRunner;
-			fIntegrationTimeoutRunner = NULL;
 			fprintf(stderr, "FeedServer integration test: expected download failure validated\n");
-			fprintf(stderr, "FeedServer integration test passed: RSS and Atom registered and refreshed\n");
-			PostMessage(B_QUIT_REQUESTED);
+			if (fIntegrationParseFailureURL.Length() > 0) {
+				fIntegrationParseFailureRequested = true;
+				fprintf(stderr, "FeedServer integration test: requesting expected parse failure\n");
+				BMessage malformed(FeedKit::Private::ToServer::RegisterFeed);
+				malformed.AddString("url", fIntegrationParseFailureURL.String());
+				malformed.AddString("name", "FeedKit malformed integration fixture");
+				PostMessage(&malformed);
+			} else {
+				fIntegrationTestComplete = true;
+				delete fIntegrationTimeoutRunner;
+				fIntegrationTimeoutRunner = NULL;
+				fprintf(stderr, "FeedServer integration test passed: RSS and Atom registered and refreshed\n");
+				PostMessage(B_QUIT_REQUESTED);
+			}
 			return B_OK;
 		}
 		FailIntegrationTest("a fixture download failed unexpectedly");
@@ -1540,8 +1554,9 @@ status_t FeedServer::HandleFeedDownloadFinish(BMessage *msg) {
 	free(buffer);
 	
 	if (refreshed == NULL) {
-		if (fIntegrationTest)
-			FailIntegrationTest("a fixture could not be parsed");
+		bool expectedParseFailure = fIntegrationTest
+			&& fIntegrationParseFailureRequested
+			&& strcmp(url, fIntegrationParseFailureURL.String()) == 0;
 
 		BMessage errorMsg(FeedKit::Private::FromServer::RegisterFeedError);
 
@@ -1552,6 +1567,27 @@ status_t FeedServer::HandleFeedDownloadFinish(BMessage *msg) {
 		errorMsg.AddFlat("feed", &feed);
 
 		Broadcast(&errorMsg);
+
+		if (expectedParseFailure) {
+			bool validFeedsIntact = fURLFeeds.size() == 2
+				&& fFeedUUID.size() == 2
+				&& fURLFeeds.find(fIntegrationRSSURL) != fURLFeeds.end()
+				&& fURLFeeds.find(fIntegrationAtomURL) != fURLFeeds.end()
+				&& fURLFeeds.find(fIntegrationParseFailureURL) == fURLFeeds.end();
+			if (!validFeedsIntact) {
+				FailIntegrationTest("a malformed feed altered registered feed state");
+				return B_ERROR;
+			}
+			fIntegrationTestComplete = true;
+			delete fIntegrationTimeoutRunner;
+			fIntegrationTimeoutRunner = NULL;
+			fprintf(stderr, "FeedServer integration test: expected parse failure validated without changing registered feeds\n");
+			fprintf(stderr, "FeedServer integration test passed: RSS and Atom registered and refreshed; failures isolated\n");
+			PostMessage(B_QUIT_REQUESTED);
+			return B_OK;
+		}
+		if (fIntegrationTest)
+			FailIntegrationTest("a fixture could not be parsed");
 		
 		return B_ERROR;
 	};

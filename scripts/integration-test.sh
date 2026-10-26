@@ -7,6 +7,7 @@ server="$root_dir/build/feed_server"
 rss="$root_dir/Tests/fixtures/integration.rss"
 atom="$root_dir/Tests/fixtures/integration.atom"
 missing="$root_dir/Tests/fixtures/does-not-exist.xml"
+malformed="$root_dir/Tests/fixtures/malformed.rss"
 log="$root_dir/build/integration-test.log"
 server_pid=
 
@@ -38,6 +39,7 @@ for artifact in "$server" "$root_dir/build/Parsers/Atom" \
 	"$root_dir/build/Parsers/RSS" "$rss" "$atom"; do
 	[ -f "$artifact" ] || fail "missing test input: $artifact"
 done
+[ -f "$malformed" ] || fail "missing test input: $malformed"
 [ ! -e "$missing" ] || fail "failure fixture unexpectedly exists: $missing"
 
 LIBRARY_PATH="$root_dir/build${LIBRARY_PATH:+:$LIBRARY_PATH}"
@@ -46,9 +48,10 @@ export LIBRARY_PATH
 : > "$log"
 echo "Starting local RSS/Atom registration and refresh test (log: $log)..."
 FEEDKIT_INTEGRATION_TEST=1 "$server" --integration-test \
-	"file://$rss" "file://$atom" "file://$missing" > "$log" 2>&1 &
+	"file://$rss" "file://$atom" "file://$missing" \
+	"file://$malformed" > "$log" 2>&1 &
 server_pid=$!
-echo "Waiting up to 20 seconds for registrations, forced refreshes, the expected failure, and shutdown..."
+echo "Waiting up to 20 seconds for registrations, forced refreshes, expected download and parse failures, and shutdown..."
 
 attempt=0
 while kill -0 "$server_pid" 2>/dev/null && [ "$attempt" -lt 20 ]; do
@@ -72,7 +75,9 @@ grep -F 'FeedServer integration test: FeedKit Atom integration fixture download 
 	"$log" >/dev/null 2>&1 || fail "Atom registration and refresh were not both validated"
 grep -F 'FeedServer integration test: expected download failure validated' \
 	"$log" >/dev/null 2>&1 || fail "the missing-feed failure path was not validated"
-grep -F 'FeedServer integration test passed: RSS and Atom registered and refreshed' \
+grep -F 'FeedServer integration test: expected parse failure validated without changing registered feeds' \
+	"$log" >/dev/null 2>&1 || fail "the malformed-feed failure path was not isolated"
+grep -F 'FeedServer integration test passed: RSS and Atom registered and refreshed; failures isolated' \
 	"$log" >/dev/null 2>&1 || fail "the server did not report integration success"
 grep -F 'FileDaemon lifecycle: requests released' "$log" >/dev/null 2>&1 \
 	|| fail "the downloader did not release all requests"
@@ -81,4 +86,4 @@ grep -F 'FeedServer lifecycle: services stopped' "$log" >/dev/null 2>&1 \
 
 trap - EXIT HUP INT TERM
 
-echo "Integration test passed: local RSS and Atom feeds registered, parsed, refreshed; a missing feed failed safely; and the server shut down cleanly."
+echo "Integration test passed: local RSS and Atom feeds registered, parsed, and refreshed; missing and malformed feeds failed safely without changing registered feeds; and the server shut down cleanly."

@@ -50,7 +50,8 @@ class FeedServer : public BApplication, public ObjectSource {
 									FeedServer(bool smokeTest = false,
 										const char *integrationRSSURL = NULL,
 										const char *integrationAtomURL = NULL,
-										const char *integrationFailureURL = NULL);
+										const char *integrationFailureURL = NULL,
+										const char *integrationParseFailureURL = NULL);
 									~FeedServer(void);
 
 		// BApplication Hooks					
@@ -81,6 +82,8 @@ class FeedServer : public BApplication, public ObjectSource {
 			BString						fIntegrationAtomURL;
 			BString						fIntegrationFailureURL;
 			bool						fIntegrationFailureRequested;
+			BString						fIntegrationParseFailureURL;
+			bool						fIntegrationParseFailureRequested;
 			std::map<BString, int32>	fIntegrationDownloads;
 			BMessageRunner				*fIntegrationTimeoutRunner;
 
