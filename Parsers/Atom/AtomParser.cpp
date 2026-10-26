@@ -241,12 +241,14 @@ status_t AtomParser::ParseAtomFeed(Channel *channel, xmlNode *parent, bool conve
 				channel->Generator(NodeContents(node));
 			};
 			if (NODE_NAME_EQ(node->name, "icon")) {
+				delete icon;
 				icon = new Enclosure(NodeContents(node));
 			};
 			if (NODE_NAME_EQ(node->name, "id")) {
 				channel->Link(NodeContents(node));
 			};
 			if (NODE_NAME_EQ(node->name, "logo")) {
+				delete logo;
 				logo = new Enclosure(NodeContents(node));
 			};
 			if (NODE_NAME_EQ(node->name, "rights")) {
@@ -266,7 +268,8 @@ status_t AtomParser::ParseAtomFeed(Channel *channel, xmlNode *parent, bool conve
 				Item *item = new Item();
 				if (ParseAtomEntry(channel, item, node->children, convertLinks) == B_OK) {
 					channel->AddItem(item);
-				};
+				} else
+					delete item;
 			};
 		};
 		
@@ -275,6 +278,7 @@ status_t AtomParser::ParseAtomFeed(Channel *channel, xmlNode *parent, bool conve
 	
 	if (icon) {
 		channel->Image(icon);
+		delete logo;
 	} else if (logo) {
 		channel->Image(logo);
 	};
@@ -314,6 +318,7 @@ status_t AtomParser::ParseAtomEntry(Channel *channel, Item *item, xmlNode *node,
 				Content *content = new Content();
 				content->MIMEType(type == NULL ? "" : type);
 				content->Text(NodeContents(node));
+				item->AddContent(content);
 			};
 			
 			if (NODE_NAME_EQ(node->name, "id")) {

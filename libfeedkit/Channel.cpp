@@ -72,14 +72,16 @@ Channel::Channel(const Channel &rhs)
 	fImage(NULL) {
 	
 	fImageUUID = rhs.fImageUUID;
+	if (rhs.fImage != NULL)
+		fImage = new Enclosure(*rhs.fImage);
 	
 	for (enclosure_list_t::const_iterator eIt = rhs.fEnclosure.begin(); eIt != rhs.fEnclosure.end(); eIt++) {
 		fEnclosure.push_back(new Enclosure((*eIt)));
 	};
 
-	for (item_list_t::const_iterator iIt = rhs.fItem.begin(); iIt != rhs.fItem.end(); iIt++) {
-		fItem.push_back(new Item((*iIt)));
-	};
+	for (item_list_t::const_iterator iIt = rhs.fItem.begin();
+		iIt != rhs.fItem.end(); iIt++)
+		AddItem(new Item(*iIt));
 };
 
 Channel::Channel(const Channel * const rhs, bool deep)
@@ -105,21 +107,22 @@ Channel::Channel(const Channel * const rhs, bool deep)
 	fImage(NULL) {
 	
 	fImageUUID = rhs->fImageUUID;
+	if (rhs->fImage != NULL)
+		fImage = new Enclosure(*rhs->fImage);
 	
 	for (enclosure_list_t::const_iterator eIt = rhs->fEnclosure.begin(); eIt != rhs->fEnclosure.end(); eIt++) {
 		fEnclosure.push_back(new Enclosure((*eIt)));
 	};
 
 	if (deep) {				
-		for (item_list_t::const_iterator iIt = rhs->fItem.begin(); iIt != rhs->fItem.end(); iIt++) {
-			fItem.push_back(new Item((*iIt)));
-		};
+		for (item_list_t::const_iterator iIt = rhs->fItem.begin();
+			iIt != rhs->fItem.end(); iIt++)
+			AddItem(new Item(*iIt));
 	};
 };
 
 Channel::~Channel(void) {
-	fItem.clear();
-	fEnclosure.clear();
+	ClearChildren();
 };
 
 //#pragma mark BFlattenable Hooks
@@ -173,6 +176,7 @@ status_t Channel::Unflatten(type_code code, const void *buffer, ssize_t numBytes
 	status_t ret = flat.Unflatten((char *)buffer);
 	
 	if (ret == B_OK) {
+		ClearChildren();
 		if (flat.FindString("uuid", &fUUID) != B_OK) fUUID = "";
 		if (flat.FindString("localuuid", &fLocalUUID) != B_OK) fLocalUUID = "";
 	
@@ -213,27 +217,28 @@ status_t Channel::Unflatten(type_code code, const void *buffer, ssize_t numBytes
 		if (flat.FindString("picsrating", &fPICSRating) != B_OK) fPICSRating = "";
 				
 		BString enclosure;
+		fImageUUID = "";
 		if (flat.FindString("image", &enclosure) == B_OK) {
 			fImageUUID = enclosure;
 		};
 		
-		Item item;
-		for (int32 i = 0; flat.FindFlat("item", i, &item) == B_OK; i++) {
-			Item *copy = new Item(item);
-			item = Item();
-
-			// XXX		
-			copy->ParentChannel(this);
-			fItem.push_back(copy);
+		for (int32 i = 0; ; i++) {
+			Item *item = new Item();
+			if (flat.FindFlat("item", i, item) != B_OK) {
+				delete item;
+				break;
+			}
+			AddItem(item);
 		}
 
 		// Extract the enclosures
-		Enclosure enc;
-		for (int32 i = 0; flat.FindFlat("enclosure", i, &enc) == B_OK; i++) {
-			Enclosure *copy = new Enclosure(enc);
-			enc = Enclosure();
-		
-			fEnclosure.push_back(copy);
+		for (int32 i = 0; ; i++) {
+			Enclosure *enclosure = new Enclosure();
+			if (flat.FindFlat("enclosure", i, enclosure) != B_OK) {
+				delete enclosure;
+				break;
+			}
+			AddEnclosure(enclosure);
 		};
 	};
 		
@@ -426,6 +431,8 @@ void Channel::ParentFeed(Feed *parent) {
 	
 	fUUID = "";
 	fLocalUUID = "";
+	for (item_list_t::iterator iIt = fItem.begin(); iIt != fItem.end(); iIt++)
+		(*iIt)->ParentChannel(this);
 };
 
 Feed *Channel::ParentFeed(void) const {
@@ -497,16 +504,36 @@ void Channel::PICSRating(const char *pics) {
 };
 
 void Channel::Image(Enclosure *image) {
+	if (image == fImage) return;
+	for (enclosure_list_t::iterator eIt = fEnclosure.begin();
+		eIt != fEnclosure.end(); eIt++) {
+		if (*eIt == image) {
+			fEnclosure.erase(eIt);
+			break;
+		}
+	}
+	delete fImage;
 	fImage = image;
 	fImageUUID = image == NULL ? "" : image->UUID();
 };
 
 void Channel::AddItem(Item *item) {
+	if (item == NULL) return;
+	for (item_list_t::const_iterator iIt = fItem.begin();
+		iIt != fItem.end(); iIt++) {
+		if (*iIt == item) return;
+	}
 	item->ParentChannel(this);
 	fItem.push_back(item);
 };
 
 void Channel::AddEnclosure(Enclosure *enclosure) {
+	if (enclosure == NULL) return;
+	if (enclosure == fImage) return;
+	for (enclosure_list_t::const_iterator eIt = fEnclosure.begin();
+		eIt != fEnclosure.end(); eIt++) {
+		if (*eIt == enclosure) return;
+	}
 	fEnclosure.push_back(enclosure);
 };
 
@@ -533,6 +560,41 @@ const char *Channel::LocalUUID(void) const {
 
 //#pragma mark Operands
 
+Channel &Channel::operator = (const Channel &rhs) {
+	if (this == &rhs) return *this;
+
+	ClearChildren();
+	fFeed = rhs.fFeed;
+	fFeedUUID = rhs.fFeedUUID;
+	fUUID = "";
+	fLocalUUID = "";
+	fTitle = rhs.fTitle;
+	fLink = rhs.fLink;
+	fDescription = rhs.fDescription;
+	fLanguage = rhs.fLanguage;
+	fCopyright = rhs.fCopyright;
+	fEditor = rhs.fEditor;
+	fWebmaster = rhs.fWebmaster;
+	fPublishedDate = rhs.fPublishedDate;
+	fLastBuildDate = rhs.fLastBuildDate;
+	fCategory = rhs.fCategory;
+	fGenerator = rhs.fGenerator;
+	fDocs = rhs.fDocs;
+	fTTL = rhs.fTTL;
+	fPICSRating = rhs.fPICSRating;
+	fImageUUID = rhs.fImageUUID;
+	if (rhs.fImage != NULL)
+		fImage = new Enclosure(*rhs.fImage);
+	for (enclosure_list_t::const_iterator eIt = rhs.fEnclosure.begin();
+		eIt != rhs.fEnclosure.end(); eIt++)
+		AddEnclosure(new Enclosure(*eIt));
+	for (item_list_t::const_iterator iIt = rhs.fItem.begin();
+		iIt != rhs.fItem.end(); iIt++)
+		AddItem(new Item(*iIt));
+
+	return *this;
+};
+
 bool Channel::operator == (const Channel &compare) const {
 	return (strcmp(UUID(), compare.UUID()) == 0);
 };
@@ -551,3 +613,15 @@ void Channel::UpdateUUID(void) {
 };
 
 //#pragma mark Private
+
+void Channel::ClearChildren(void) {
+	delete fImage;
+	fImage = NULL;
+	for (item_list_t::iterator iIt = fItem.begin(); iIt != fItem.end(); iIt++)
+		delete *iIt;
+	fItem.clear();
+	for (enclosure_list_t::iterator eIt = fEnclosure.begin();
+		eIt != fEnclosure.end(); eIt++)
+		delete *eIt;
+	fEnclosure.clear();
+};

@@ -30,6 +30,7 @@
 #include <unistd.h>
 
 #include <errno.h>
+#include <set>
 #include <string.h>
 
 #include <curl/curl.h>
@@ -233,7 +234,24 @@ FeedServer::~FeedServer(void) {
 	if (!fIntegrationTest)
 		SaveFeeds();
 
+	std::set<Feed *> feeds;
+	for (feed_uuid_t::iterator fIt = fFeedUUID.begin();
+		fIt != fFeedUUID.end(); fIt++)
+		feeds.insert(fIt->second);
+	for (urlfeed_t::iterator uIt = fURLFeeds.begin();
+		uIt != fURLFeeds.end(); uIt++)
+		feeds.insert(uIt->second);
+
+	fRefFeeds.clear();
+	fRefFeedUUID.clear();
 	fURLFeeds.clear();
+	fFeedUUID.clear();
+	fChannelUUID.clear();
+	fItemUUID.clear();
+	fEnclosureUUID.clear();
+	for (std::set<Feed *>::iterator fIt = feeds.begin();
+		fIt != feeds.end(); fIt++)
+		delete *fIt;
 		
 	delete fParserManager;
 	delete fSettings;
@@ -588,6 +606,7 @@ void FeedServer::LaunchFeed(entry_ref ref) {
 	if (error != B_OK) {
 		fprintf(stderr, "FeedServer::LaunchFeed(%s): Error unflattening Feed: %s\n", ref.name, strerror(error));
 		free(buffer);
+		delete feed;
 		
 		return;
 	};
@@ -843,7 +862,7 @@ Feed *FeedServer::MergeFeed(Feed *oldFeed, Feed *newFeed) {
 		
 		if (nIt == newChannel.end()) {
 			// Archived Channel
-			Channel *channel = oIt->second;
+			Channel *channel = new Channel(*oIt->second);
 			for (uint32 i = 0; i < channel->ItemCount(); i++) {
 				Item *item = channel->ItemAt(i);
 				item->SetCurrent(false);
@@ -862,7 +881,7 @@ Feed *FeedServer::MergeFeed(Feed *oldFeed, Feed *newFeed) {
 		oIt = oldChannel.find(nIt->first);
 		if (oIt == oldChannel.end()) {
 			// New Channel - add
-			Channel *channel = nIt->second;
+			Channel *channel = new Channel(*nIt->second);
 			
 			for (uint32 i = 0; i < channel->ItemCount(); i++) {
 				Item *item = channel->ItemAt(i);
@@ -880,13 +899,26 @@ Feed *FeedServer::MergeFeed(Feed *oldFeed, Feed *newFeed) {
 
 		for (uint32 j = 0; j < channel->ItemCount(); j++) {
 			Item *item = channel->ItemAt(j);
+			for (uint32 k = 0; k < item->EnclosureCount(); k++)
+				fEnclosureUUID.erase(item->EnclosureAt(k)->UUID());
 			fItemUUID.erase(item->UUID());
 		};
+		for (uint32 j = 0; j < channel->EnclosureCount(); j++)
+			fEnclosureUUID.erase(channel->EnclosureAt(j)->UUID());
+		if (channel->Image() != NULL)
+			fEnclosureUUID.erase(channel->Image()->UUID());
 		
 		fChannelUUID.erase(channel->UUID());
 	};
 	
 	UpdateFeedUUIDs(merged);
+	for (reffeed_t::iterator rIt = fRefFeeds.begin();
+		rIt != fRefFeeds.end(); rIt++) {
+		if (rIt->second == oldFeed)
+			rIt->second = merged;
+	}
+	delete oldFeed;
+	delete newFeed;
 	
 	return merged;
 };
@@ -911,7 +943,7 @@ Channel *FeedServer::MergeChannel(Feed *feed, Channel *oldChannel, Channel *newC
 	
 	// Loop through all old Items
 	for (oIt = oldItem.begin(); oIt != oldItem.end(); oIt++) {
-		Item *item = oIt->second;
+		Item *item = new Item(*oIt->second);
 		nIt = newItem.find(oIt->first);
 		
 		if (nIt == newItem.end()) {
@@ -932,7 +964,7 @@ Channel *FeedServer::MergeChannel(Feed *feed, Channel *oldChannel, Channel *newC
 		
 		if (oIt == oldItem.end()) {
 			// New Item - set to new and current
-			Item *item = nIt->second;
+			Item *item = new Item(*nIt->second);
 			item->SetCurrent(true);
 			item->SetNew(true);
 

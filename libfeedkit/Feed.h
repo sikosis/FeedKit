@@ -45,6 +45,7 @@ namespace FeedKit {
 			Channel			*ChannelAt(uint32 index) const;		
 			ChannelList		FindChannels(ChannelSpecification *spec, bool autodelete) const;
 			Channel			*ChannelByUUID(const char *uuid) const;
+			// Takes ownership of channel.
 			void			AddChannel(Channel *channel);
 
 			bool			Contains(Channel *channel) const;
@@ -53,6 +54,7 @@ namespace FeedKit {
 			const char		*UUID(void) const;
 			
 			// Operands
+			Feed			&operator = (const Feed &rhs);
 			bool operator	== (const Feed &compare) const;
 			bool operator	!= (const Feed &compare) const;
 			
@@ -65,6 +67,7 @@ namespace FeedKit {
 			friend class	FeedParser;
 
 		private:
+			void			ClearChannels(void);
 			int32			FindChannel(Channel *channel) const;
 		
 			BString			fURL;

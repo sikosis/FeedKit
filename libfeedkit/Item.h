@@ -52,6 +52,7 @@ namespace FeedKit {
 			EnclosureList		FindEnclosures(EnclosureSpecification *spec, bool autodelete) const;
 
 			Enclosure			*EnclosureByUUID(const char *uuid) const;
+			// Take ownership of the supplied child.
 			void				AddEnclosure(Enclosure *enclosure);
 	
 			uint32				ContentCount(void) const;
@@ -79,6 +80,7 @@ namespace FeedKit {
 			const char			*LocalUUID(void) const;
 			
 			// Operands
+			Item				&operator = (const Item &rhs);
 			bool operator		== (const Item &compare) const;
 			bool operator		!= (const Item &compare) const;
 
@@ -91,6 +93,7 @@ namespace FeedKit {
 			friend class		::FeedServer;
 	
 		private:
+			void				ClearChildren(void);
 			Channel				*fChannel;
 			BString				fChannelUUID;
 			

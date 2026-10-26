@@ -54,6 +54,7 @@ namespace FeedKit {
 			const char			*LocalUUID(void) const;
 			
 			// Operands
+			Enclosure			&operator = (const Enclosure &rhs);
 			bool operator		== (const Enclosure &compare) const;
 			bool operator		!= (const Enclosure &compare) const;
 

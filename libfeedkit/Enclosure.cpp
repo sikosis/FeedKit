@@ -192,6 +192,23 @@ const char *Enclosure::LocalUUID(void) const {
 
 //#pragma mark Operands
 
+Enclosure &Enclosure::operator = (const Enclosure &rhs) {
+	if (this == &rhs) return *this;
+
+	delete fProgress;
+	fURL = rhs.fURL;
+	fMIME = rhs.fMIME;
+	fDescription = rhs.fDescription;
+	fSize = rhs.fSize;
+	fState = rhs.fState;
+	fProgress = rhs.fProgress == NULL
+		? NULL : new DownloadProgress(rhs.fProgress);
+	fLocalUUID = "";
+	fLocalRef = rhs.fLocalRef;
+
+	return *this;
+};
+
 bool Enclosure::operator == (const Enclosure &compare) const {
 	return (strcmp(UUID(), compare.UUID()) == 0);
 };

@@ -32,9 +32,9 @@ Feed::Feed(const Feed &rhs)
 	
 	fChannel.clear();
 	
-	for (channel_list_t::const_iterator cIt = rhs.fChannel.begin(); cIt != rhs.fChannel.end(); cIt++) {
-		fChannel.push_back(new Channel((*cIt)));
-	}
+	for (channel_list_t::const_iterator cIt = rhs.fChannel.begin();
+		cIt != rhs.fChannel.end(); cIt++)
+		AddChannel(new Channel(*cIt));
 };
 
 Feed::Feed(const Feed * const rhs)
@@ -45,9 +45,9 @@ Feed::Feed(const Feed * const rhs)
 	
 	fChannel.clear();
 	
-	for (channel_list_t::const_iterator cIt = rhs->fChannel.begin(); cIt != rhs->fChannel.end(); cIt++) {
-		fChannel.push_back(new Channel((*cIt)));
-	}
+	for (channel_list_t::const_iterator cIt = rhs->fChannel.begin();
+		cIt != rhs->fChannel.end(); cIt++)
+		AddChannel(new Channel(*cIt));
 };
 
 Feed::Feed(void)
@@ -60,7 +60,7 @@ Feed::Feed(void)
 };
 
 Feed::~Feed(void) {
-	fChannel.clear();
+	ClearChannels();
 };
 
 //#pragma mark BFlattenable Hooks
@@ -84,19 +84,19 @@ status_t Feed::Unflatten(type_code /*code*/, const void *buffer, ssize_t /*numBy
 	status_t ret = flat.Unflatten((char *)buffer);
 
 	if (ret == B_OK) {
+		ClearChannels();
 		if (flat.FindString("url", &fURL) != B_OK) ret = B_ERROR;
 		if (flat.FindString("name", &fName) != B_OK) fName = "";
 		if (flat.FindBool("subscribed", &fSubscribed) != B_OK) fSubscribed = true;
 		if (flat.FindString("uuid", &fUUID) != B_OK) fUUID = "";
 		
-		Channel channel;
-		for (int32 i = 0; flat.FindFlat("channel", i, &channel) == B_OK; i++) {
-			Channel *copy = new Channel(channel);
-			channel = Channel();
-		
-			// XXX
-			copy->ParentFeed(this);
-			fChannel.push_back(copy);
+		for (int32 i = 0; ; i++) {
+			Channel *channel = new Channel();
+			if (flat.FindFlat("channel", i, channel) != B_OK) {
+				delete channel;
+				break;
+			}
+			AddChannel(channel);
 		}
 	};
 
@@ -192,6 +192,11 @@ Channel *Feed::ChannelByUUID(const char *uuid) const {
 };
 
 void Feed::AddChannel(Channel *channel) {
+	if (channel == NULL) return;
+	for (channel_list_t::const_iterator cIt = fChannel.begin();
+		cIt != fChannel.end(); cIt++) {
+		if (*cIt == channel) return;
+	}
 	channel->ParentFeed(this);
 	
 	fChannel.push_back(channel);
@@ -219,6 +224,21 @@ const char *Feed::UUID(void) const {
 
 //#pragma mark Operands
 
+Feed &Feed::operator = (const Feed &rhs) {
+	if (this == &rhs) return *this;
+
+	ClearChannels();
+	fURL = rhs.fURL;
+	fName = rhs.fName;
+	fSubscribed = rhs.fSubscribed;
+	fUUID = "";
+	for (channel_list_t::const_iterator cIt = rhs.fChannel.begin();
+		cIt != rhs.fChannel.end(); cIt++)
+		AddChannel(new Channel(*cIt));
+
+	return *this;
+};
+
 bool Feed::operator == (const Feed &compare) const {
 	return (strcmp(UUID(), compare.UUID()) == 0);
 };
@@ -243,6 +263,13 @@ void Feed::SetSubscribed(bool subscribe) {
 };
 
 //#pragma mark Private
+
+void Feed::ClearChannels(void) {
+	for (channel_list_t::iterator cIt = fChannel.begin();
+		cIt != fChannel.end(); cIt++)
+		delete *cIt;
+	fChannel.clear();
+};
 
 int32 Feed::FindChannel(Channel *channel) const {
 	int32 index = -1;

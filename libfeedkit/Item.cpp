@@ -67,9 +67,9 @@ Item::Item(const Item &rhs)
 		fEnclosure.push_back(new Enclosure((*eIt)));
 	};
 	
-	for (content_list_t::const_iterator cIt = rhs.fContent.begin(); cIt != rhs.fContent.end(); cIt++) {
-		fContent.push_back(new Content((*cIt)));
-	};
+	for (content_list_t::const_iterator cIt = rhs.fContent.begin();
+		cIt != rhs.fContent.end(); cIt++)
+		AddContent(new Content(*cIt));
 };
 
 Item::Item(const Item * const rhs)
@@ -95,13 +95,13 @@ Item::Item(const Item * const rhs)
 		fEnclosure.push_back(new Enclosure((*eIt)));
 	};
 	
-	for (content_list_t::const_iterator cIt = rhs->fContent.begin(); cIt != rhs->fContent.end(); cIt++) {
-		fContent.push_back(new Content((*cIt)));
-	};
+	for (content_list_t::const_iterator cIt = rhs->fContent.begin();
+		cIt != rhs->fContent.end(); cIt++)
+		AddContent(new Content(*cIt));
 };
 
 Item::~Item(void) {
-	fEnclosure.clear();
+	ClearChildren();
 };
 
 //#pragma mark BFlattenable Hooks
@@ -147,6 +147,7 @@ status_t Item::Unflatten(type_code code, const void *buffer, ssize_t numBytes) {
 	status_t ret = flat.Unflatten((char *)buffer);
 
 	if (ret == B_OK) {
+		ClearChildren();
 		if (flat.FindString("uuid", &fUUID) != B_OK) fUUID = "";
 		if (flat.FindString("localuuid", &fLocalUUID) != B_OK) fLocalUUID = "";
 	
@@ -170,22 +171,22 @@ status_t Item::Unflatten(type_code code, const void *buffer, ssize_t numBytes) {
 		if (flat.FindBool("current", &fCurrent) != B_OK) ret = B_ERROR;
 		if (flat.FindBool("new", &fNew) != B_OK) ret = B_ERROR;
 
-		Enclosure enclosure;
-		for (int32 i = 0; flat.FindFlat("enclosure", i, &enclosure) == B_OK; i++) {
-			Enclosure *copy = new Enclosure(enclosure);
-			enclosure = Enclosure();
-			
-			fEnclosure.push_back(copy);
+		for (int32 i = 0; ; i++) {
+			Enclosure *enclosure = new Enclosure();
+			if (flat.FindFlat("enclosure", i, enclosure) != B_OK) {
+				delete enclosure;
+				break;
+			}
+			AddEnclosure(enclosure);
 		};
 		
-		Content content;
-		for (int32 i = 0; flat.FindFlat("content", i, &content) == B_OK; i++) {
-			Content *copy = new Content(content);
-			content = Content();
-			
-			// XXX
-			copy->ParentItem(this);
-			fContent.push_back(copy);
+		for (int32 i = 0; ; i++) {
+			Content *content = new Content();
+			if (flat.FindFlat("content", i, content) != B_OK) {
+				delete content;
+				break;
+			}
+			AddContent(content);
 		};
 	};
 	
@@ -245,6 +246,9 @@ void Item::ParentChannel(Channel *channel) {
 	
 	fUUID = "";
 	fLocalUUID = "";
+	for (content_list_t::iterator cIt = fContent.begin();
+		cIt != fContent.end(); cIt++)
+		(*cIt)->ParentItem(this);
 };
 
 Channel *Item::ParentChannel(void) const {
@@ -370,6 +374,11 @@ Enclosure *Item::EnclosureByUUID(const char *uuid) const {
 }
 
 void Item::AddEnclosure(Enclosure *enclosure) {
+	if (enclosure == NULL) return;
+	for (enclosure_list_t::const_iterator eIt = fEnclosure.begin();
+		eIt != fEnclosure.end(); eIt++) {
+		if (*eIt == enclosure) return;
+	}
 	fEnclosure.push_back(enclosure);
 };
 
@@ -399,6 +408,11 @@ ContentList Item::FindContent(ContentSpecification *spec, bool autodelete) const
 };
 
 void Item::AddContent(Content *content) {
+	if (content == NULL) return;
+	for (content_list_t::const_iterator cIt = fContent.begin();
+		cIt != fContent.end(); cIt++) {
+		if (*cIt == content) return;
+	}
 	fContent.push_back(content);
 	content->ParentItem(this);
 };
@@ -445,6 +459,37 @@ const char *Item::LocalUUID(void) const {
 
 //#pragma mark Operands
 
+Item &Item::operator = (const Item &rhs) {
+	if (this == &rhs) return *this;
+
+	ClearChildren();
+	fChannel = rhs.fChannel;
+	fChannelUUID = rhs.fChannelUUID;
+	fUUID = "";
+	fLocalUUID = "";
+	fPermaLinkGUID = rhs.fPermaLinkGUID;
+	fGUID = rhs.fGUID;
+	fAuthor = rhs.fAuthor;
+	fTitle = rhs.fTitle;
+	fLink = rhs.fLink;
+	fCategory = rhs.fCategory;
+	fComments = rhs.fComments;
+	fDate = rhs.fDate;
+	fSourceURL = rhs.fSourceURL;
+	fSourceTitle = rhs.fSourceTitle;
+	fRead = rhs.fRead;
+	fCurrent = rhs.fCurrent;
+	fNew = rhs.fNew;
+	for (enclosure_list_t::const_iterator eIt = rhs.fEnclosure.begin();
+		eIt != rhs.fEnclosure.end(); eIt++)
+		AddEnclosure(new Enclosure(*eIt));
+	for (content_list_t::const_iterator cIt = rhs.fContent.begin();
+		cIt != rhs.fContent.end(); cIt++)
+		AddContent(new Content(*cIt));
+
+	return *this;
+};
+
 bool Item::operator == (const Item &compare) const {
 	return (strcmp(UUID(), compare.UUID()) == 0);
 };
@@ -475,4 +520,15 @@ void Item::UpdateUUID(void) {
 };
 
 //#pragma mark Private
+
+void Item::ClearChildren(void) {
+	for (enclosure_list_t::iterator eIt = fEnclosure.begin();
+		eIt != fEnclosure.end(); eIt++)
+		delete *eIt;
+	fEnclosure.clear();
+	for (content_list_t::iterator cIt = fContent.begin();
+		cIt != fContent.end(); cIt++)
+		delete *cIt;
+	fContent.clear();
+};
 

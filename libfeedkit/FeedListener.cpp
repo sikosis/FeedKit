@@ -458,13 +458,14 @@ feed_list_t FeedListener::Feeds(void) {
 	BMessage feedList;
 
 	if (SendMessage(&getFeedList, &feedList) == B_OK) {	
-		Feed feed;
-		for (int32 i = 0; feedList.FindFlat("feed", i, &feed) == B_OK; i++) {
-			Feed *copy = new Feed(&feed);
-			feed = Feed();
-		
-			feeds.push_back(copy);			
-		};		
+		for (int32 i = 0; ; i++) {
+			Feed *feed = new Feed();
+			if (feedList.FindFlat("feed", i, feed) != B_OK) {
+				delete feed;
+				break;
+			}
+			feeds.push_back(feed);
+		};
 	};
 
 	return feeds;

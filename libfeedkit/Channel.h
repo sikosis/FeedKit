@@ -87,8 +87,10 @@ namespace FeedKit {
 			void				Docs(const char *docs);
 			void				TTL(long ttl);
 			void				PICSRating(const char *pics);
+			// Takes ownership of image.
 			void				Image(Enclosure *image);
 		
+			// Take ownership of the supplied child.
 			void				AddItem(Item *item);
 			void				AddEnclosure(Enclosure *enclosure);
 			
@@ -96,6 +98,7 @@ namespace FeedKit {
 			const char			*LocalUUID(void) const;
 	
 			// Operands
+			Channel				&operator = (const Channel &rhs);
 			bool operator		== (const Channel &compare) const;
 			bool operator		!= (const Channel &compare) const;
 		protected:
@@ -104,6 +107,7 @@ namespace FeedKit {
 			friend class		::FeedServer;
 	
 		private:
+			void				ClearChildren(void);
 			Feed				*fFeed;
 			BString				fFeedUUID;
 			
