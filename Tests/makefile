@@ -25,4 +25,4 @@ test: default
 	LIBRARY_PATH="../build$${LIBRARY_PATH:+:$$LIBRARY_PATH}" \
 		../build/Tests/parser_tests ../build/Parsers/RSS ../build/Parsers/Atom \
 		"$(shell pwd)/fixtures/integration.rss" \
-		"$(shell pwd)/fixtures/integration.atom"
+		"$(shell pwd)/fixtures/integration.atom" ../build/Parsers

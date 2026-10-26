@@ -9,6 +9,8 @@
 #include <libfeedkit/FeedParser.h>
 #include <libfeedkit/Item.h>
 
+#include "ParserManager.h"
+
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -181,8 +183,8 @@ CheckIncompleteAtom(FeedParser *parser)
 int
 main(int argc, char **argv)
 {
-	if (argc != 5) {
-		fprintf(stderr, "Usage: %s RSS_ADDON ATOM_ADDON RSS_FIXTURE ATOM_FIXTURE\n",
+	if (argc != 6) {
+		fprintf(stderr, "Usage: %s RSS_ADDON ATOM_ADDON RSS_FIXTURE ATOM_FIXTURE PARSER_DIRECTORY\n",
 			argv[0]);
 		return 1;
 	}
@@ -218,6 +220,32 @@ main(int argc, char **argv)
 	delete[] atomData;
 	UnloadParser(&rss);
 	UnloadParser(&atom);
+
+	int32 discoveredCount = 0;
+	{
+		ParserManager manager(argv[5]);
+		discoveredCount = manager.CountParsers();
+		Check(discoveredCount >= 2,
+			"Parser manager did not discover RSS and Atom add-ons");
+		char *managerData = NULL;
+		int32 managerSize = 0;
+		Check(ReadFile(argv[3], &managerData, &managerSize),
+			"Could not reread the parser-manager fixture");
+		Feed *feed = managerData == NULL ? NULL : manager.Parse(
+			"memory://manager.rss", managerData, managerSize);
+		Check(feed != NULL && feed->ChannelCount() == 1,
+			"Parser manager could not parse through a discovered add-on");
+		delete feed;
+		delete[] managerData;
+	}
+	{
+		path_t duplicatePaths;
+		duplicatePaths.push_back(argv[5]);
+		duplicatePaths.push_back(argv[5]);
+		ParserManager manager(duplicatePaths);
+		Check(manager.CountParsers() == discoveredCount,
+			"Duplicate parser directories changed the loaded parser set");
+	}
 
 	if (sFailures == 0) {
 		printf("FeedKit parser tests passed: %d checks.\n", (int)sChecks);

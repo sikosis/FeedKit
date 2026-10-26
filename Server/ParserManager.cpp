@@ -12,6 +12,7 @@
 
 #include <algorithm>
 #include <stdio.h>
+#include <string.h>
 
 //#pragma mark Namespace import
 
@@ -62,36 +63,18 @@ ParserManager::ParserManager(void) {
 			LoadAddons(parserPath.Path());
 		}
 	}
-
-	BPath path;
-	if (find_directory(B_USER_ADDONS_DIRECTORY, &path, true, NULL) == B_OK) {
-		path.Append(kAddonPath);
-		
-		LoadAddons(path.Path());
-	};
+	LoadStandardAddons();
 };
 
 ParserManager::ParserManager(const char *path) {
 	LoadAddons(path);
-	
-	BPath userPath;
-	if (find_directory(B_USER_ADDONS_DIRECTORY, &userPath, true, NULL) == B_OK) {
-		userPath.Append(kAddonPath);
-		
-		LoadAddons(userPath.Path());
-	};
+	LoadStandardAddons();
 };
 
 ParserManager::ParserManager(path_t paths) {
 	int32 pathCount = paths.size();
 	for (int32 i = 0; i < pathCount; i++) LoadAddons(paths[i].String());
-
-	BPath userPath;
-	if (find_directory(B_USER_ADDONS_DIRECTORY, &userPath, true, NULL) == B_OK) {
-		userPath.Append(kAddonPath);
-		
-		LoadAddons(userPath.Path());
-	};
+	LoadStandardAddons();
 };
 
 ParserManager::~ParserManager(void) {
@@ -151,7 +134,40 @@ Feed *ParserManager::Parse(const char *url, const char *data, int32 length) {
 	return feed;
 };
 
+int32 ParserManager::CountParsers(void) const {
+	return static_cast<int32>(fParsers.size());
+};
+
 //#pragma mark Private
+
+void ParserManager::LoadStandardAddons(void) {
+	const directory_which locations[] = {
+		B_USER_NONPACKAGED_ADDONS_DIRECTORY,
+		B_USER_ADDONS_DIRECTORY,
+		B_SYSTEM_NONPACKAGED_ADDONS_DIRECTORY,
+		B_SYSTEM_ADDONS_DIRECTORY
+	};
+
+	for (uint32 i = 0; i < sizeof(locations) / sizeof(locations[0]); i++) {
+		BPath path;
+		if (find_directory(locations[i], &path, false, NULL) != B_OK)
+			continue;
+		if (path.Append(kAddonPath) != B_OK)
+			continue;
+		LoadAddons(path.Path());
+	}
+};
+
+bool ParserManager::HasParserNamed(const char *name) const {
+	if (name == NULL)
+		return false;
+	for (parser_t::const_iterator it = fParsers.begin(); it != fParsers.end(); it++) {
+		const char *loadedName = it->second->Name();
+		if (loadedName != NULL && strcmp(loadedName, name) == 0)
+			return true;
+	}
+	return false;
+};
 
 void ParserManager::LoadAddons(const char *path) {
 	BDirectory dir(path);
@@ -159,9 +175,18 @@ void ParserManager::LoadAddons(const char *path) {
 
 	entry_ref ref;
 	while (dir.GetNextRef(&ref) == B_OK) {
-		BPath addonPath(&ref);
+		BEntry addonEntry(&ref, true);
+		BPath addonPath;
+		if (addonEntry.InitCheck() != B_OK
+			|| addonEntry.GetPath(&addonPath) != B_OK)
+			continue;
+		if (fVisitedAddonPaths.find(addonPath.Path())
+			!= fVisitedAddonPaths.end())
+			continue;
+		fVisitedAddonPaths.insert(addonPath.Path());
+
 		image_id image = load_add_on(addonPath.Path());
-		FeedParser *(*instantiate)(BMessage);
+		FeedParser *(*instantiate)(BMessage) = NULL;
 
 		fprintf(stderr, "ParserManager::LoadAddons(%s): Loading \"%s\"... %s\n", path,
 			addonPath.Leaf(), image < B_OK ? strerror(image) : "Done");
@@ -171,19 +196,23 @@ void ParserManager::LoadAddons(const char *path) {
 				(void **)&instantiate);
 		
 			fprintf(stderr, "\tReading instantiate_parser: %s (%i)\n", strerror(status), status);
-			if (status == B_OK) {
+			if (status == B_OK && instantiate != NULL) {
 			
 				BMessage settings;
 				FeedParser *parser = instantiate(settings);
-				if (parser != NULL)
+				if (parser != NULL && !HasParserNamed(parser->Name())) {
 					fParsers[image] = parser;
-				else
+				} else {
+					if (parser != NULL) {
+						fprintf(stderr, "\tSkipping duplicate parser name: %s\n",
+							parser->Name());
+						delete parser;
+					}
 					unload_add_on(image);
+				}
 			} else {
 				unload_add_on(image);
 			};
-		} else {
-			unload_add_on(image);
 		};
 	};
 };

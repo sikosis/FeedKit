@@ -6,6 +6,7 @@
 
 #include <vector>
 #include <map>
+#include <set>
 
 #include <libfeedkit/FeedKitConstants.h>
 
@@ -25,11 +26,15 @@ class ParserManager {
 							~ParserManager(void);
 							
 		FeedKit::Feed		*Parse(const char *url, const char *data, int32 length);
+		int32				CountParsers(void) const;
 	
 	private:
 		void				LoadAddons(const char *path);
+		void				LoadStandardAddons(void);
+		bool				HasParserNamed(const char *name) const;
 	
 		parser_t			fParsers;		
+		std::set<BString>	fVisitedAddonPaths;
 };
 
 #endif

@@ -8,6 +8,7 @@ TYPE= APP
 
 Source_src := \
 	Main.cpp \
+	ParserManagerSource.cpp \
 #
 
 SRCS := $(Source_src)
@@ -15,7 +16,7 @@ SRCS := $(Source_src)
 LIBS= be stdc++ feedkit
 LIBPATHS= /boot/home/config/lib
 SYSTEM_INCLUDE_PATHS= /boot/home/config/include
-LOCAL_INCLUDE_PATHS=
+LOCAL_INCLUDE_PATHS= ../../Server
 OPTIMIZE= SOME
 DEFINES=
 WARNINGS= ALL
