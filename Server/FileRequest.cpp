@@ -4,11 +4,13 @@
 #include <FindDirectory.h>
 #include <Path.h>
 #include <String.h>
+#include <Errors.h>
 
 #include <curl/curlver.h>
 #include <curl/curl.h>
 #include <curl/easy.h>
 
+#include <errno.h>
 #include <stdlib.h>
 #include <string.h>
 #include <unistd.h>
@@ -176,6 +178,8 @@ status_t FileRequest::Start(void) {
 			}
 		};
 		if (curlResult == CURLE_ABORTED_BY_CALLBACK) result = DownloadCancelled;
+		if (curlResult == CURLE_WRITE_ERROR && fStorageStatus != B_OK)
+			result = fStorageStatus;
 	} else {
 		result = B_OK;
 	};
@@ -420,12 +424,27 @@ size_t FileRequest::SaveData(void *data, size_t size, size_t length, void *ptr) 
 	if (size != 0 && length > static_cast<size_t>(-1) / size)
 		return 0;
 	size_t bytes = size * length;
-	ssize_t written = us->fTemporaryFD >= 0
-		? ::write(us->fTemporaryFD, data, bytes) : us->fFile.Write(data, bytes);
+	ssize_t written;
+	if (us->fTemporaryFD >= 0) {
+		errno = 0;
+		written = ::write(us->fTemporaryFD, data, bytes);
+		if (written < 0) {
+			us->fStorageStatus = errno != 0
+				? B_FROM_POSIX_ERROR(errno) : B_FILE_ERROR;
+		}
+	} else {
+		written = us->fFile.Write(data, bytes);
+		if (written < 0)
+			us->fStorageStatus = static_cast<status_t>(written);
+	}
 	if (written < 0)
 		return 0;
 
 	us->fSize += static_cast<curl_off_t>(written);
+	if (static_cast<size_t>(written) != bytes) {
+		us->fStorageStatus = B_PARTIAL_WRITE;
+		return static_cast<size_t>(written);
+	}
 
 	if (us->fStartSent == false) {
 		for (handlerinfo_t::iterator rIt = us->fHandler.begin(); rIt != us->fHandler.end(); rIt++) {

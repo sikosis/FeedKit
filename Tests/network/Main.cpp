@@ -33,6 +33,24 @@ class CancellingHandler : public FileRequestHandler {
 		}
 };
 
+class ClosingStorageHandler : public FileRequestHandler {
+	public:
+					ClosingStorageHandler()
+						: fReleaseStatus(B_NO_INIT) {
+					}
+
+		void		DownloadStarted(FileRequest *request, void *) {
+						fReleaseStatus = request->ReleaseTemporaryStorage();
+					}
+
+		status_t	ReleaseStatus(void) const {
+						return fReleaseStatus;
+					}
+
+	private:
+		status_t	fReleaseStatus;
+};
+
 class LocalHTTPServer {
 	public:
 					LocalHTTPServer(const char *body, size_t bodySize)
@@ -156,6 +174,21 @@ class LocalHTTPServer {
 						if (used == 0)
 							return;
 						request[used] = '\0';
+
+						if (strncmp(request, "GET /write-failure ", 19) == 0) {
+							char header[256];
+							int length = snprintf(header, sizeof(header),
+								"HTTP/1.1 200 OK\r\nContent-Length: %lu\r\n"
+								"Connection: close\r\n\r\n", (unsigned long)fBodySize);
+							if (length > 0 && static_cast<size_t>(length) < sizeof(header)
+									&& fBodySize > 1) {
+								Send(client, header, length);
+								Send(client, fBody, 1);
+								snooze(100000);
+								Send(client, fBody + 1, fBodySize - 1);
+							}
+							return;
+						}
 
 						if (strncmp(request, "GET /redirect ", 14) == 0) {
 							const char response[] = "HTTP/1.1 302 Found\r\n"
@@ -434,6 +467,31 @@ RunTests(const char *fixturePath)
 		Check(missingHTTPRequest.Error() != NULL
 			&& strlen(missingHTTPRequest.Error()) > 0,
 			"HTTP 404 response did not retain an error description");
+
+		BString writeFailureURL(baseURL);
+		writeFailureURL << "/write-failure";
+		FileRequest writeFailureRequest(writeFailureURL.String());
+		ClosingStorageHandler closingHandler;
+		writeFailureRequest.AddHandler(&closingHandler, NULL, false);
+		status_t writeFailureStatus = writeFailureRequest.Start();
+		Check(writeFailureStatus != B_OK,
+			"Storage write failure unexpectedly succeeded");
+		Check(writeFailureRequest.CurlStatus() == CURLE_WRITE_ERROR,
+			"Storage write failure retained the wrong curl status");
+		Check(closingHandler.ReleaseStatus() == B_OK,
+			"Storage write failure fixture did not close its output");
+		Check(writeFailureRequest.StorageStatus() != B_OK,
+			"Storage write failure did not retain its Haiku status");
+		Check(writeFailureStatus == writeFailureRequest.StorageStatus(),
+			"Storage write failure did not return its Haiku status");
+		Check(writeFailureRequest.Completed(),
+			"Storage write failure was not marked complete");
+		Check(writeFailureRequest.Size() > 0
+			&& writeFailureRequest.Size() < static_cast<int32>(fixtureSize),
+			"Storage write failure reported an invalid partial size");
+		Check(writeFailureRequest.Error() != NULL
+			&& strlen(writeFailureRequest.Error()) > 0,
+			"Storage write failure did not retain an error description");
 
 		Check(server.Stop(), "Local HTTP fixture server did not stop cleanly");
 	}
