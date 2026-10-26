@@ -2,6 +2,7 @@
 
 #include <parsedate.h>
 
+#include <libxml/parser.h>
 #include <libxml/tree.h>
 #include <libxml/xpath.h>
 #include <libxml/xpathInternals.h>
@@ -71,7 +72,8 @@ float RSSParser::HandlesFeedURL(const char *url) {
 float RSSParser::HandlesFeed(const char *url, const char *feed, int32 length) {
 	(void)url;
 	float ability = 0.0f;
-	xmlDocPtr doc = xmlParseMemory(feed, length);
+	xmlDocPtr doc = xmlReadMemory(feed, length, url, NULL,
+		XML_PARSE_NONET | XML_PARSE_NOERROR | XML_PARSE_NOWARNING);
 	if (doc != NULL) {
 		xmlXPathContextPtr pathCtxt = xmlXPathNewContext(doc);
 		if (pathCtxt != NULL) {
@@ -95,7 +97,8 @@ float RSSParser::HandlesFeed(const char *url, const char *feed, int32 length) {
 Feed *RSSParser::ParseFeed(const char *url, const char *data, int32 length) {
 	Feed *feed = NULL;
 	Channel *channel = NULL;
-	xmlDocPtr doc = xmlParseMemory(data, length);
+	xmlDocPtr doc = xmlReadMemory(data, length, url, NULL,
+		XML_PARSE_NONET | XML_PARSE_NOERROR | XML_PARSE_NOWARNING);
 	if (doc == NULL) return feed;
 
 	xmlXPathContextPtr pathCtxt = xmlXPathNewContext(doc);
