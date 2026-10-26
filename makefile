@@ -9,6 +9,7 @@ COMMON_LIB:=$(shell finddir B_COMMON_LIB_DIRECTORY)
 COMMON_SERVERS:=$(shell finddir B_COMMON_SERVERS_DIRECTORY)
 COMMON_ADDONS:=$(shell finddir B_COMMON_ADDONS_DIRECTORY)
 BUILD:=$(shell pwd)/build
+PACKAGE_ROOT?=$(BUILD)/package-root
 
 CORE_SUBDIRS = \
 	Server \
@@ -23,11 +24,10 @@ SUBDIRS = $(CORE_SUBDIRS) Tests
 
 FEEDKIT_HEADERS=$(addprefix /boot/home/config/include/, $(wildcard libfeedkit/*.h))
 
-.PHONY: default clean test unit smoke integration optional install dist common
+.PHONY: default clean test unit smoke integration optional package-stage package-check install dist common
 
 default:
 	$(MAKE) -C libfeedkit -f makefile $@ || exit 1;
-	ln -sf "$(BUILD)/libfeedkit.so" "$(COMMON_LIB)"
 
 	@for f in $(SUBDIRS) ; do \
 		$(MAKE) -C $$f -f makefile $@ || exit 1; \
@@ -48,6 +48,12 @@ unit: default
 	$(MAKE) -C Tests -f makefile test
 
 test: unit smoke integration
+
+package-stage: default
+	./scripts/stage-package.sh "$(BUILD)" "$(PACKAGE_ROOT)"
+
+package-check: package-stage
+	./scripts/check-package-layout.sh "$(PACKAGE_ROOT)"
 
 clean:
 	$(MAKE) -C libfeedkit -f makefile clean

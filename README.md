@@ -8,11 +8,9 @@ architecture on x86_gcc2 hybrid installations.
 
 > **Current status:** compatibility audit and restoration planning are
 > complete. The default core target now builds successfully on R1/beta6
-> x86_64, and the native startup/parser-loading/shutdown smoke test passes.
-> The bounded local RSS/Atom registration-and-refresh integration test also
-> passes natively on beta6. The dependency-free native unit suite passes all
-> 113 checks covering stable UUID fixtures, model serialization and ownership,
-> download progress state, and listener safety.
+> x86_64. Network and parser modernization is complete: the native focused
+> suites pass all 215 checks, and the startup, failure-isolation, persistence,
+> restart, and clean-shutdown integration paths pass on beta6.
 
 See [DESIGN.md](DESIGN.md) for the full compatibility audit, technical
 findings, constraints, and acceptance criteria.
@@ -23,12 +21,12 @@ findings, constraints, and acceptance criteria.
 ![Design: complete](https://img.shields.io/badge/2_Design-complete-2ea44f)
 ![Native build: complete](https://img.shields.io/badge/3_Native_build-complete-2ea44f)
 ![Core safety: complete](https://img.shields.io/badge/4_Core_safety-complete-2ea44f)
-![Network and parsers: in progress](https://img.shields.io/badge/5_Network_%26_parsers-in_progress-d29922)
-![Packaging: planned](https://img.shields.io/badge/6_Packaging-planned-8c959f)
+![Network and parsers: complete](https://img.shields.io/badge/5_Network_%26_parsers-complete-2ea44f)
+![Packaging: in progress](https://img.shields.io/badge/6_Packaging-in_progress-d29922)
 ![Clients: planned](https://img.shields.io/badge/7_Clients-planned-8c959f)
 ![Release: planned](https://img.shields.io/badge/8_Release-planned-8c959f)
 
-![Overall progress: 4 of 8 complete](https://img.shields.io/badge/Overall_progress-4_of_8_complete-0969da)
+![Overall progress: 5 of 8 complete](https://img.shields.io/badge/Overall_progress-5_of_8_complete-0969da)
 
 - Green: complete
 - Amber: in progress
@@ -43,8 +41,8 @@ findings, constraints, and acceptance criteria.
 | Restoration design | Complete — 25 October 2026 | Documented build blockers, correctness defects, dependency/API changes, compatibility constraints, staged goals, and release acceptance criteria in `DESIGN.md`. |
 | Native beta6 baseline | Complete — 25 October 2026 | User-confirmed successful default build of `libfeedkit.so`, `feed_server`, and the RSS/Atom parser add-ons on R1/beta6 x86_64. Build repairs covered malformed makefiles, dependencies, compiler/linker flags, fixed-width types, protected server access, modern curl callbacks, and repository-local linking. |
 | Core safety and compatibility | Complete — 26 October 2026 | The dependency-free suite passes all 113 checks natively on beta6. It covers stable UUIDs, serialization, download progress, listener safety, parent-owned model trees, deep copy and assignment, replacement-safe unflattening, independent refresh merges, download-request ownership, and complete server teardown. Native smoke and integration runs also pass. |
-| Network and parser modernization | In progress — 26 October 2026 | Native beta6 smoke and integration tests pass, including RSS/Atom registration and refresh, parser discovery, clean shutdown, missing downloads, malformed-feed isolation, and two-process persistence/restart with stable UUIDs. The native 55-check FileRequest suite covers local files and offline loopback HTTP, and the native 39-check parser baseline covers valid, malformed, incomplete, discovered, and duplicate-path cases. New byte-level fixtures verify ISO-8859-1-to-UTF-8 RSS normalization and UTF-8 Atom preservation; the expanded 47-check parser suite awaits native verification. |
-| Package and lifecycle integration | Planned | Add package-aware paths and an HPKG workflow, then verify installation, discovery, startup, persistence, and removal. |
+| Network and parser modernization | Complete — 26 October 2026 | Native beta6 smoke and integration tests pass, including RSS/Atom registration and refresh, ordered package-aware parser discovery, clean shutdown, missing downloads, malformed-feed isolation, and two-process persistence/restart with stable UUIDs. The 55-check FileRequest suite covers local files and offline loopback HTTP. The 47-check parser suite covers valid, malformed, incomplete, discovered, duplicate-path, ISO-8859-1, and UTF-8 cases. Together with 113 model checks, all 215 focused checks pass. |
+| Package and lifecycle integration | In progress — 26 October 2026 | A non-destructive staged package layout and exact content check now cover the library, server, parser add-ons, public headers, and documentation. The HaikuPorter recipe, installed-server discovery, lifecycle decision, and install/remove validation remain. |
 | Optional client ports | Planned | Port clients independently after the core is stable; replace obsolete NetPositive and InfoPopper integrations where necessary. |
 | Beta6 release validation | Planned | Pass builds, tests, integration checks, and HPKG installation on x86_64 and the modern secondary `x86` architecture. |
 
@@ -141,6 +139,23 @@ repository-owned in-memory and local fixtures.
 
 Captured server output is written to `build/smoke-test.log` or
 `build/integration-test.log` when a check fails.
+
+### Package layout check
+
+The packaging work uses a staging tree and does not invoke the unsafe legacy
+`make install` target. The default build also stays inside the repository;
+tests resolve `libfeedkit.so` from `build` rather than creating a system
+symlink. On Haiku, build and validate the current package contents with:
+
+```sh
+make package-check
+```
+
+The staged tree is written to `build/package-root` by default. It contains the
+runtime library, server, RSS and Atom parser add-ons, the explicitly
+maintained public-header set, and project documentation. Override
+`PACKAGE_ROOT` to inspect another disposable staging directory. This is a
+layout check, not yet an HPKG build or installation.
 
 The current native build requires the PCRE development package. On Haiku,
 install it with:
