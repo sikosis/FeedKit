@@ -86,4 +86,4 @@ class ResizeView : public BView {
 		bool				fMousePressed;
 };
 
-#endif _RESIZEVIEW_H
+#endif

@@ -1,5 +1,6 @@
 #include "PWindow.h"
 
+#include <Application.h>
 #include <Box.h>
 #include <Button.h>
 #include <CheckBox.h>
@@ -19,6 +20,7 @@
 #include <TextView.h>
 #include <View.h>
 
+#include <stdio.h>
 #include <stdlib.h>
 
 #ifdef ZETA
