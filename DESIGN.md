@@ -415,8 +415,9 @@ Phase 5 is in progress. The first slice restores the `RegisterFeed` and
 `FeedSubscriber` command utilities with repository-local builds, explicit
 server startup, bounded asynchronous completion, and clean listener teardown.
 They remain outside the core build. Both now build natively on beta6; an
-isolated end-to-end client smoke check is pending native validation before this
-slice is complete.
+isolated end-to-end client smoke check passes registration, unsubscribe,
+resubscribe, persistence, and clean shutdown. The first client slice is
+complete; the remaining optional clients continue independently.
 
 Suggested order:
 
