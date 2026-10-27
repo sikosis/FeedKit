@@ -423,6 +423,11 @@ The second slice restores the FeedKit preferences app with repository-local
 linking and an isolated, self-closing launch check. Its native beta6 build and
 smoke validation pass. The preferences slice is complete.
 
+The third slice restores the Deskbar client with repository-local linking and
+a bounded lifecycle check that constructs, archives, restores, and destroys
+the Deskbar view without changing the user's running Deskbar. Its native beta6
+build and smoke validation pass. The Deskbar slice is complete.
+
 Suggested order:
 
 1. command-line or single-purpose utilities;

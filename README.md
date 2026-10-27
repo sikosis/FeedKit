@@ -45,7 +45,7 @@ findings, constraints, and acceptance criteria.
 | Core safety and compatibility | Complete — 26 October 2026 | The dependency-free suite passes all 113 checks natively on beta6. It covers stable UUIDs, serialization, download progress, listener safety, parent-owned model trees, deep copy and assignment, replacement-safe unflattening, independent refresh merges, download-request ownership, and complete server teardown. Native smoke and integration runs also pass. |
 | Network and parser modernization | Complete — 26 October 2026 | Native beta6 smoke and integration tests pass, including RSS/Atom registration and refresh, ordered package-aware parser discovery, clean shutdown, missing downloads, malformed-feed isolation, and two-process persistence/restart with stable UUIDs. The 55-check FileRequest suite covers local files and offline loopback HTTP. The 47-check parser suite covers valid, malformed, incomplete, discovered, duplicate-path, ISO-8859-1, and UTF-8 cases. Together with 113 model checks, all 215 focused checks pass. |
 | Package and lifecycle integration | Complete — 27 October 2026 | The staged layout, local and HaikuPorter x86_64 HPKG generation, activation, signature-based on-demand startup, packaged library/server/parser discovery, clean shutdown, removal, and user-data preservation pass natively. HaikuPorter produced runtime, debuginfo, and devel packages. Secondary-architecture coverage remains part of release validation. |
-| Optional client ports | In progress — 27 October 2026 | The command utilities and FeedKit preferences app are independently restored. `RegisterFeed` and `FeedSubscriber` pass isolated registration, unsubscribe, resubscribe, persistence, and shutdown coverage. `FeedKitSettings` now builds natively and passes an isolated, self-closing launch check. Deskbar, notifications, and Anchorman remain. |
+| Optional client ports | In progress — 27 October 2026 | The command utilities, FeedKit preferences app, and Deskbar view are independently restored. The command clients pass isolated end-to-end coverage, `FeedKitSettings` passes its self-closing launch check, and the Deskbar view passes its non-invasive archive/restore lifecycle check. Notifications and Anchorman remain. |
 | Beta6 release validation | Planned | Pass builds, tests, integration checks, and HPKG installation on x86_64 and the modern secondary `x86` architecture. |
 
 ## Goals
@@ -176,7 +176,7 @@ settings directory and closes the window automatically:
 make preflet-smoke
 ```
 
-Build the in-progress Deskbar slice with `make deskbar`. Its bounded lifecycle
+Build the restored Deskbar slice with `make deskbar`. Its bounded lifecycle
 check constructs, archives, restores, and destroys the Deskbar view without
 installing it into the user's running Deskbar:
 
