@@ -96,7 +96,7 @@ FeedIcon::~FeedIcon(void) {
 
 //#pragma mark BArchivable Hooks
 
-status_t FeedIcon::Archive(BMessage *archive, bool deep = true) const {
+status_t FeedIcon::Archive(BMessage *archive, bool deep) const {
 	status_t result = BView::Archive(archive, deep);
 	
 	archive->AddString("add_on", APP_SIG);
@@ -334,7 +334,7 @@ void FeedIcon::Init(void) {
 	};
 };
 
-BBitmap *FeedIcon::ReadNodeIcon(BString &path, int32 size, bool followSymlink = true) {
+BBitmap *FeedIcon::ReadNodeIcon(BString &path, int32 size, bool followSymlink) {
 	BBitmap *ret = NULL;
 	entry_ref ref;
 	
