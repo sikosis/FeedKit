@@ -11,10 +11,11 @@ network/parser integration also passes registration, refresh, failure
 isolation, persistence, restart, and clean-shutdown checks. Phase 4 packaging
 work has started: the staged layout, content check, and initial x86_64 HPKG
 generation pass natively. Explicit on-demand startup, installed-image
-validation, removal, and user-data preservation also pass natively. A pinned
-HaikuPorter recipe is ready for strict native validation. Secondary-architecture
-testing, optional clients, and release validation remain and are tracked in
-`README.md`.
+validation, removal, and user-data preservation also pass natively. The pinned
+HaikuPorter recipe passes strict x86_64 package generation and produces
+runtime, debuginfo, and devel packages. Phase 4 is complete;
+secondary-architecture testing, optional clients, and release validation
+remain and are tracked in `README.md`.
 
 The audit used:
 
