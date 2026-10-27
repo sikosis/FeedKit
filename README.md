@@ -12,7 +12,8 @@ architecture on x86_gcc2 hybrid installations.
 > suites pass all 215 checks, and the startup, failure-isolation, persistence,
 > restart, and clean-shutdown integration paths pass on beta6. The staged
 > package layout, install/remove lifecycle, and strict HaikuPorter x86_64
-> package build also pass natively.
+> package build also pass natively. All Goal 7 clients now build and pass their
+> isolated native smoke checks.
 
 See [DESIGN.md](DESIGN.md) for the full compatibility audit, technical
 findings, constraints, and acceptance criteria.
@@ -25,10 +26,10 @@ findings, constraints, and acceptance criteria.
 ![Core safety: complete](https://img.shields.io/badge/4_Core_safety-complete-2ea44f)
 ![Network and parsers: complete](https://img.shields.io/badge/5_Network_%26_parsers-complete-2ea44f)
 ![Packaging: complete](https://img.shields.io/badge/6_Packaging-complete-2ea44f)
-![Clients: in progress](https://img.shields.io/badge/7_Clients-in_progress-d29922)
+![Clients: complete](https://img.shields.io/badge/7_Clients-complete-2ea44f)
 ![Release: planned](https://img.shields.io/badge/8_Release-planned-8c959f)
 
-![Overall progress: 6 of 8 complete](https://img.shields.io/badge/Overall_progress-6_of_8_complete-0969da)
+![Overall progress: 7 of 8 complete](https://img.shields.io/badge/Overall_progress-7_of_8_complete-0969da)
 
 - Green: complete
 - Amber: in progress
@@ -45,7 +46,7 @@ findings, constraints, and acceptance criteria.
 | Core safety and compatibility | Complete — 26 October 2026 | The dependency-free suite passes all 113 checks natively on beta6. It covers stable UUIDs, serialization, download progress, listener safety, parent-owned model trees, deep copy and assignment, replacement-safe unflattening, independent refresh merges, download-request ownership, and complete server teardown. Native smoke and integration runs also pass. |
 | Network and parser modernization | Complete — 26 October 2026 | Native beta6 smoke and integration tests pass, including RSS/Atom registration and refresh, ordered package-aware parser discovery, clean shutdown, missing downloads, malformed-feed isolation, and two-process persistence/restart with stable UUIDs. The 55-check FileRequest suite covers local files and offline loopback HTTP. The 47-check parser suite covers valid, malformed, incomplete, discovered, duplicate-path, ISO-8859-1, and UTF-8 cases. Together with 113 model checks, all 215 focused checks pass. |
 | Package and lifecycle integration | Complete — 27 October 2026 | The staged layout, local and HaikuPorter x86_64 HPKG generation, activation, signature-based on-demand startup, packaged library/server/parser discovery, clean shutdown, removal, and user-data preservation pass natively. HaikuPorter produced runtime, debuginfo, and devel packages. Secondary-architecture coverage remains part of release validation. |
-| Optional client ports | In progress — 27 October 2026 | The command utilities, FeedKit preferences app, and Deskbar view are independently restored. The command clients pass isolated end-to-end coverage, `FeedKitSettings` passes its self-closing launch check, and the Deskbar view passes its non-invasive archive/restore lifecycle check. Notifications and Anchorman remain. |
+| Optional client ports | Complete — 27 October 2026 | The command utilities, FeedKit preferences app, Deskbar view, native notification client, and modernized Anchorman reader build natively and pass their bounded checks. Coverage includes isolated command-client integration, self-closing GUI launches, non-invasive Deskbar archive/restore, and notification construction without displaying a notification. |
 | Beta6 release validation | Planned | Pass builds, tests, integration checks, and HPKG installation on x86_64 and the modern secondary `x86` architecture. |
 
 ## Goals
@@ -146,17 +147,16 @@ Captured server output is written to `build/smoke-test.log` or
 
 ### Optional client builds
 
-Goal 7 clients are enabled in independently validated groups. Build the
-currently supported command utilities and their core dependencies with:
+Goal 7 clients were enabled in independently validated groups. Build all
+supported clients except the separately built preferences app with:
 
 ```sh
 make clients
 ```
 
-This currently produces `build/Clients/RegisterFeed` and
-`build/Clients/FeedSubscriber`. Other historical clients remain excluded from
-this target until their dependencies, lifecycle, and smoke checks have been
-modernized.
+This produces `RegisterFeed`, `FeedSubscriber`, `DeskbarIcon`,
+`FeedInfoPopper`, and `Anchorman` under `build/Clients`. Historical examples
+outside the Goal 7 restoration scope remain excluded from the supported build.
 
 After the build passes, exercise both utilities against the local RSS fixture
 and an isolated temporary feed store with:
@@ -198,8 +198,7 @@ window without starting `feed_server` with:
 make anchorman-smoke
 ```
 
-After validating the slices independently, rerun every Goal 7 client check
-through the repository-owned aggregate target:
+Run every Goal 7 client check through the repository-owned aggregate target:
 
 ```sh
 make goal7-check

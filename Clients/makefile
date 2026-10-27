@@ -4,7 +4,10 @@
 
 SUPPORTED_SUBDIRS = \
 	RegisterFeed \
-	FeedSubscriber
+	FeedSubscriber \
+	Deskbar \
+	FeedInfoPopper \
+	Anchorman
 
 .PHONY: default clean
 

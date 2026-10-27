@@ -411,13 +411,13 @@ resident or adding a new boot-time service.
 
 ### Phase 5: port clients independently
 
-Phase 5 is in progress. The first slice restores the `RegisterFeed` and
+Phase 5 is complete. The first slice restores the `RegisterFeed` and
 `FeedSubscriber` command utilities with repository-local builds, explicit
 server startup, bounded asynchronous completion, and clean listener teardown.
 They remain outside the core build. Both now build natively on beta6; an
 isolated end-to-end client smoke check passes registration, unsubscribe,
 resubscribe, persistence, and clean shutdown. The first client slice is
-complete; the remaining optional clients continue independently.
+complete.
 
 The second slice restores the FeedKit preferences app with repository-local
 linking and an isolated, self-closing launch check. Its native beta6 build and
@@ -431,14 +431,16 @@ build and smoke validation pass. The Deskbar slice is complete.
 The fourth slice replaces the removed InfoPopper transport with Haiku native
 notifications. It retains new-item and enclosure-progress notifications while
 using the current FeedHandler callbacks. Its smoke mode constructs a native
-notification without displaying it.
+notification without displaying it. Its native beta6 build and smoke
+validation pass.
 
 The fifth slice replaces Anchorman's NetPositive replicant and bundled legacy
 column-list UI with native list and text views. Feed and item browsing, refresh,
 mark-read, and external-browser link handling remain available. Its smoke mode
 opens and closes the reader without starting the server or touching user data.
+Its native beta6 build and smoke validation pass.
 
-Suggested order:
+Implemented order:
 
 1. command-line or single-purpose utilities;
 2. FeedKit preferences;
@@ -446,10 +448,9 @@ Suggested order:
 4. notification client using Haiku notifications; and
 5. Anchorman.
 
-Anchorman should initially replace the NetPositive replicant with a native
-content view and external-browser link handling. The embedded legacy
-column-list implementation should be evaluated against Haiku's current
-column-list library before investing in extensive repairs.
+Anchorman replaces the NetPositive replicant with a native content view and
+external-browser link handling. The embedded legacy column-list implementation
+is retained for historical reference but excluded from the supported build.
 
 Each client should be optional in the build until it compiles, launches, and
 passes its own smoke test. Missing historical dependencies should not block
