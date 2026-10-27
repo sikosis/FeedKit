@@ -2,45 +2,38 @@
 #define FEEDINFOPOPPER_H
 
 #include <Application.h>
-#include <Entry.h>
 
 #include <libfeedkit/FeedHandler.h>
 
-class BMessenger;
-
-
 namespace FeedKit {
-	class FeedListener;
 	class Channel;
-};
-
-using namespace FeedKit;
+	class Enclosure;
+	class FeedListener;
+	class Item;
+}
 
 class FeedInfoPopper : public BApplication, public FeedKit::FeedHandler {
 	public:
-							FeedInfoPopper(void);
-							~FeedInfoPopper(void);
+							FeedInfoPopper(bool smokeTest = false);
+							~FeedInfoPopper();
 
-		// BApplication Hooks					
-		virtual void		ReadyToRun(void);
-	
-		// Feed Handler Hooks
-		virtual void		FeedRegistered(Feed *feed);
-		virtual void		ChannelUpdated(Feed *feed, Channel *channel);
+		void				ReadyToRun();
 
-		virtual void		EnclosureDownloadStarted(Feed *feed, Item *item, Enclosure *enclosure, entry_ref ref);
-		virtual void		EnclosureDownloadProgress(Feed *feed, Item *item, Enclosure *enclosure, DownloadProgress *progress, entry_ref ref);
-//		virtual void		EnclosureDownloadFinished(Feed *feed, Item *item, Enclosure *enclosure, entry_ref ref);
-//		virtual void		EnclosureDownloadError(Feed *feed, Item *item, Enclosure *enclosure, Error *error);
-		
+		void				FeedRegistered(FeedKit::Feed *feed);
+		void				ChannelUpdated(FeedKit::Feed *feed,
+								FeedKit::Channel *channel);
+		void				EnclosureDownloadProgress(FeedKit::Feed *feed,
+								FeedKit::Item *item,
+								FeedKit::Enclosure *enclosure);
+
 	private:
-		void				BroadcastChannelContents(Channel *channel);
-		void				BroadcastDownloadProgress(Feed *feed, Item *item, Enclosure *enclosure, DownloadProgress *progress);
-	
-		FeedListener		*fFeedListener;
-		BMessenger			*fInfoPopper;
+		void				BroadcastChannelContents(FeedKit::Channel *channel);
+		void				BroadcastDownloadProgress(FeedKit::Enclosure *enclosure);
+		void				StopListener();
 
-		entry_ref			fServerRef;
+		bool				fSmokeTest;
+		FeedKit::FeedListener
+							*fFeedListener;
 };
 
 #endif
