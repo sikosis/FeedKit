@@ -27,7 +27,7 @@ SUBDIRS = $(CORE_SUBDIRS) Tests
 
 FEEDKIT_HEADERS=$(addprefix /boot/home/config/include/, $(wildcard libfeedkit/*.h))
 
-.PHONY: default clean test unit smoke integration clients client-smoke preferences preflet-smoke deskbar deskbar-smoke optional package-stage package-check package installed-package-check package-removal-prepare package-removal-check install dist common
+.PHONY: default clean test unit smoke integration clients client-smoke preferences preflet-smoke deskbar deskbar-smoke notifications notification-smoke anchorman anchorman-smoke goal7-check optional package-stage package-check package installed-package-check package-removal-prepare package-removal-check install dist common
 
 default:
 	$(MAKE) -C libfeedkit -f makefile $@ || exit 1;
@@ -58,6 +58,20 @@ deskbar: default
 
 deskbar-smoke: deskbar
 	./scripts/deskbar-smoke-test.sh
+
+notifications: default
+	$(MAKE) -C Clients/FeedInfoPopper -f makefile default
+
+notification-smoke: notifications
+	./scripts/notification-smoke-test.sh
+
+anchorman: default
+	$(MAKE) -C Clients/Anchorman -f makefile default
+
+anchorman-smoke: anchorman
+	./scripts/anchorman-smoke-test.sh
+
+goal7-check: client-smoke preflet-smoke deskbar-smoke notification-smoke anchorman-smoke
 
 smoke: default
 	./scripts/smoke-test.sh

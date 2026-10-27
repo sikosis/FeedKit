@@ -184,6 +184,27 @@ installing it into the user's running Deskbar:
 make deskbar-smoke
 ```
 
+Build the native Haiku notification client and its non-emitting lifecycle
+check with:
+
+```sh
+make notification-smoke
+```
+
+Build the modernized Anchorman reader and open its native, self-closing smoke
+window without starting `feed_server` with:
+
+```sh
+make anchorman-smoke
+```
+
+After validating the slices independently, rerun every Goal 7 client check
+through the repository-owned aggregate target:
+
+```sh
+make goal7-check
+```
+
 ### Package layout check
 
 The packaging work uses a staging tree and does not invoke the unsafe legacy

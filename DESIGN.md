@@ -428,6 +428,16 @@ a bounded lifecycle check that constructs, archives, restores, and destroys
 the Deskbar view without changing the user's running Deskbar. Its native beta6
 build and smoke validation pass. The Deskbar slice is complete.
 
+The fourth slice replaces the removed InfoPopper transport with Haiku native
+notifications. It retains new-item and enclosure-progress notifications while
+using the current FeedHandler callbacks. Its smoke mode constructs a native
+notification without displaying it.
+
+The fifth slice replaces Anchorman's NetPositive replicant and bundled legacy
+column-list UI with native list and text views. Feed and item browsing, refresh,
+mark-read, and external-browser link handling remain available. Its smoke mode
+opens and closes the reader without starting the server or touching user data.
+
 Suggested order:
 
 1. command-line or single-purpose utilities;
