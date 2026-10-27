@@ -1,50 +1,24 @@
 #include "TApplication.h"
-#include "TWindow.h"
+
 #include "Settings.h"
+#include "TWindow.h"
 
-#include <Archivable.h>
-#include <support/ClassInfo.h>
+#include <stdio.h>
 
-#include <libfeedkit/SettingsManager.h>
-
-//#pragma mark Constants
-
-//#pragma mark Constructor
-
-TApplication::TApplication(bool unarchive = true)
+TApplication::TApplication(bool smokeTest)
 	: BApplication(kAppSignature),
-	fUnarchive(unarchive),
-	fWindow(NULL) {
-};
+	fSmokeTest(smokeTest),
+	fWindow(NULL)
+{
+}
 
-TApplication::~TApplication(void) {
-};
-
-//#pragma mark BApplication Hooks
-
-void TApplication::ReadyToRun(void) {
-	FeedKit::Settings::SettingsManager manager(FeedKit::Settings::AppTypes::SettingClient, kSettingsAppName);
-
-	BMessage settings = manager.Settings();
-	BMessage archive;
-
-	if ((fUnarchive == true) && (settings.FindMessage(kSettingsMessageName, &archive) == B_OK)) {
-		BArchivable *instance = instantiate_object(&archive);
-		if (instance) {
-			fWindow = cast_as(instance, TWindow);
-		};
-	};
-	
-	if (fWindow == NULL) fWindow = new TWindow();
-
+void
+TApplication::ReadyToRun()
+{
+	fWindow = new TWindow(fSmokeTest);
 	fWindow->Show();
-};
-
-bool TApplication::QuitRequested(void) {
-	return true;
-};
-
-void TApplication::MessageReceived(BMessage *msg) {
-	BApplication::MessageReceived(msg);
-};
-
+	if (fSmokeTest) {
+		printf("Anchorman smoke test passed\n");
+		fWindow->PostMessage(B_QUIT_REQUESTED);
+	}
+}

@@ -7,19 +7,13 @@ class TWindow;
 
 class TApplication : public BApplication {
 	public:
-	
-							TApplication(bool unarchive = true);
-							~TApplication(void);
-		
-		// BApplication Hooks				
-		bool				QuitRequested(void);
-		void				MessageReceived(BMessage *msg);
-		void				ReadyToRun(void);
-				
+							TApplication(bool smokeTest = false);
+
+		void				ReadyToRun();
+
 	private:
-		bool				fUnarchive;
+		bool				fSmokeTest;
 		TWindow				*fWindow;
 };
 
 #endif
-
