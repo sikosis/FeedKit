@@ -20,9 +20,27 @@ if [ "$(uname -s)" != Haiku ]; then
 	exit 1
 fi
 
+architecture=$(getarch)
+case "$architecture" in
+	x86_64)
+		package_name=feedkit
+		;;
+	x86)
+		package_name=feedkit_x86
+		;;
+	*)
+		echo "Unsupported FeedKit package architecture: $architecture" >&2
+		exit 2
+		;;
+esac
+
+lib_dir=$(finddir B_SYSTEM_LIB_DIRECTORY)
+server_dir=$(finddir B_SYSTEM_SERVERS_DIRECTORY)
+add_ons_dir=$(finddir B_SYSTEM_ADDONS_DIRECTORY)
+
 is_installed()
 {
-	for package_file in /boot/system/packages/feedkit-*.hpkg; do
+	for package_file in "/boot/system/packages/$package_name"-*.hpkg; do
 		if [ -f "$package_file" ]; then
 			return 0
 		fi
@@ -52,10 +70,10 @@ case "$mode" in
 			exit 1
 		fi
 		for packaged_path in \
-			/boot/system/lib/libfeedkit.so \
-			/boot/system/servers/feed_server \
-			/boot/system/add-ons/feed_kit/Parsers/Atom \
-			/boot/system/add-ons/feed_kit/Parsers/RSS
+			"$lib_dir/libfeedkit.so" \
+			"$server_dir/feed_server" \
+			"$add_ons_dir/feed_kit/Parsers/Atom" \
+			"$add_ons_dir/feed_kit/Parsers/RSS"
 		do
 			if [ -e "$packaged_path" ]; then
 				echo "FAIL: packaged file remains after uninstall: $packaged_path" >&2

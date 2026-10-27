@@ -12,7 +12,14 @@ COMMON_ADDONS:=$(shell finddir B_COMMON_ADDONS_DIRECTORY)
 BUILD:=$(shell pwd)/build
 PACKAGE_ROOT?=$(BUILD)/package-root
 PACKAGE_ARCH?=$(shell getarch 2>/dev/null)
-PACKAGE_FILE?=$(BUILD)/feedkit-$(VERSION)-$(PACKAGE_REVISION)-$(PACKAGE_ARCH).hpkg
+ifeq ($(PACKAGE_ARCH),x86)
+	PACKAGE_NAME:=feedkit_x86
+	PACKAGE_PLATFORM_ARCH:=x86_gcc2
+else
+	PACKAGE_NAME:=feedkit
+	PACKAGE_PLATFORM_ARCH:=$(PACKAGE_ARCH)
+endif
+PACKAGE_FILE?=$(BUILD)/$(PACKAGE_NAME)-$(VERSION)-$(PACKAGE_REVISION)-$(PACKAGE_PLATFORM_ARCH).hpkg
 
 CORE_SUBDIRS = \
 	Server \
@@ -27,7 +34,7 @@ SUBDIRS = $(CORE_SUBDIRS) Tests
 
 FEEDKIT_HEADERS=$(addprefix /boot/home/config/include/, $(wildcard libfeedkit/*.h))
 
-.PHONY: default clean test unit smoke integration clients client-smoke preferences preflet-smoke deskbar deskbar-smoke notifications notification-smoke anchorman anchorman-smoke goal7-check optional package-stage package-check package installed-package-check package-removal-prepare package-removal-check install dist common
+.PHONY: default clean test unit smoke integration clients client-smoke preferences preflet-smoke deskbar deskbar-smoke notifications notification-smoke anchorman anchorman-smoke goal7-check release-check optional package-stage package-check package installed-package-check package-removal-prepare package-removal-check install dist common
 
 default:
 	$(MAKE) -C libfeedkit -f makefile $@ || exit 1;
@@ -73,6 +80,9 @@ anchorman-smoke: anchorman
 
 goal7-check: client-smoke preflet-smoke deskbar-smoke notification-smoke anchorman-smoke
 
+release-check:
+	./scripts/release-check.sh "$(EXPECTED_ARCH)" "$(VERSION)" "$(PACKAGE_REVISION)"
+
 smoke: default
 	./scripts/smoke-test.sh
 
@@ -85,10 +95,10 @@ unit: default
 test: unit smoke integration
 
 package-stage: default
-	./scripts/stage-package.sh "$(BUILD)" "$(PACKAGE_ROOT)"
+	./scripts/stage-package.sh "$(BUILD)" "$(PACKAGE_ROOT)" "$(PACKAGE_ARCH)"
 
 package-check: package-stage
-	./scripts/check-package-layout.sh "$(PACKAGE_ROOT)"
+	./scripts/check-package-layout.sh "$(PACKAGE_ROOT)" "$(PACKAGE_ARCH)"
 
 package: package-check
 	./scripts/create-package.sh "$(PACKAGE_ROOT)" "$(PACKAGE_FILE)" \
@@ -107,6 +117,9 @@ package-removal-check:
 clean:
 	$(MAKE) -C libfeedkit -f makefile clean
 	@for f in $(SUBDIRS) ; do \
+		$(MAKE) -C $$f -f makefile clean || exit 1; \
+	done
+	@for f in $(OPTIONAL_SUBDIRS) ; do \
 		$(MAKE) -C $$f -f makefile clean || exit 1; \
 	done
 

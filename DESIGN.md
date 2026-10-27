@@ -14,8 +14,8 @@ generation pass natively. Explicit on-demand startup, installed-image
 validation, removal, and user-data preservation also pass natively. The pinned
 HaikuPorter recipe passes strict x86_64 package generation and produces
 runtime, debuginfo, and devel packages. Phase 4 is complete;
-secondary-architecture testing, optional clients, and release validation
-remain and are tracked in `README.md`.
+optional-client restoration is complete. Secondary-architecture testing and
+final release validation remain and are tracked in `README.md`.
 
 The audit used:
 
@@ -468,6 +468,13 @@ The final beta6 validation matrix is:
 The repository-owned validation entry point should perform the build, tests,
 package generation, and package-content checks. Publishing or tagging remains
 a separate, explicitly authorized action.
+
+`make release-check EXPECTED_ARCH=<x86_64|x86>` is that entry point. It
+validates the active compiler architecture, rebuilds from clean core and
+optional-client objects, runs the complete core and Goal 7 suites, and creates
+an inspected architecture-correct HPKG in a unique local directory. Package
+installation and removal remain explicit user actions because they mutate the
+system package state.
 
 Before release, review the final diff and artifacts for:
 

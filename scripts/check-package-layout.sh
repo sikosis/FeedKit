@@ -2,12 +2,13 @@
 
 set -eu
 
-if [ "$#" -ne 1 ]; then
-	echo "Usage: $0 PACKAGE_ROOT" >&2
+if [ "$#" -ne 2 ]; then
+	echo "Usage: $0 PACKAGE_ROOT ARCHITECTURE" >&2
 	exit 2
 fi
 
 package_root=$1
+architecture=$2
 project_dir=$(CDPATH= cd -- "$(dirname "$0")/.." && pwd)
 header_manifest="$project_dir/packaging/public-headers.txt"
 
@@ -19,10 +20,25 @@ require_file()
 	fi
 }
 
-require_file "$package_root/lib/libfeedkit.so"
+case "$architecture" in
+	x86_64)
+	library_path="lib/libfeedkit.so"
+	parser_path="add-ons/feed_kit/Parsers"
+	;;
+	x86)
+	library_path="lib/x86/libfeedkit.so"
+	parser_path="add-ons/x86/feed_kit/Parsers"
+	;;
+	*)
+		echo "Unsupported FeedKit package architecture: $architecture" >&2
+		exit 2
+		;;
+esac
+
+require_file "$package_root/$library_path"
 require_file "$package_root/servers/feed_server"
-require_file "$package_root/add-ons/feed_kit/Parsers/Atom"
-require_file "$package_root/add-ons/feed_kit/Parsers/RSS"
+require_file "$package_root/$parser_path/Atom"
+require_file "$package_root/$parser_path/RSS"
 
 while IFS= read -r header || [ -n "$header" ]; do
 	case "$header" in

@@ -41,7 +41,20 @@ case "$revision" in
 esac
 
 case "$architecture" in
-	x86_64|x86) ;;
+	x86_64)
+		package_name=feedkit
+		package_architecture=x86_64
+		secondary_suffix=
+		library_path=lib/libfeedkit.so
+		parser_path=add-ons/feed_kit/Parsers
+		;;
+	x86)
+		package_name=feedkit_x86
+		package_architecture=x86_gcc2
+		secondary_suffix=_x86
+		library_path=lib/x86/libfeedkit.so
+		parser_path=add-ons/x86/feed_kit/Parsers
+		;;
 	*)
 		echo "Unsupported FeedKit package architecture: $architecture" >&2
 		exit 2
@@ -80,9 +93,11 @@ cleanup()
 trap cleanup EXIT HUP INT TERM
 
 sed \
+	-e "s/@PACKAGE_NAME@/$package_name/g" \
+	-e "s/@SECONDARY_SUFFIX@/$secondary_suffix/g" \
 	-e "s/@VERSION@/$version/g" \
 	-e "s/@REVISION@/$revision/g" \
-	-e "s/@ARCHITECTURE@/$architecture/g" \
+	-e "s/@ARCHITECTURE@/$package_architecture/g" \
 	"$template" > "$package_info"
 
 (cd "$package_root" && package create "$output")
@@ -92,13 +107,13 @@ paths_file="$output.paths"
 package list -i "$output" > "$info_file"
 package list -p "$output" > "$paths_file"
 
-grep -F "name: feedkit" "$info_file" >/dev/null
+grep -F "name: $package_name" "$info_file" >/dev/null
 grep -F "version: $version-$revision" "$info_file" >/dev/null
-grep -F "architecture: $architecture" "$info_file" >/dev/null
+grep -F "architecture: $package_architecture" "$info_file" >/dev/null
 grep -F "servers/feed_server" "$paths_file" >/dev/null
-grep -F "add-ons/feed_kit/Parsers/Atom" "$paths_file" >/dev/null
-grep -F "add-ons/feed_kit/Parsers/RSS" "$paths_file" >/dev/null
-grep -F "lib/libfeedkit.so" "$paths_file" >/dev/null
+grep -F "$parser_path/Atom" "$paths_file" >/dev/null
+grep -F "$parser_path/RSS" "$paths_file" >/dev/null
+grep -F "$library_path" "$paths_file" >/dev/null
 
 rm -f -- "$info_file" "$paths_file"
 trap - EXIT HUP INT TERM

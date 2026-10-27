@@ -2,13 +2,14 @@
 
 set -eu
 
-if [ "$#" -ne 2 ]; then
-	echo "Usage: $0 BUILD_DIRECTORY PACKAGE_ROOT" >&2
+if [ "$#" -ne 3 ]; then
+	echo "Usage: $0 BUILD_DIRECTORY PACKAGE_ROOT ARCHITECTURE" >&2
 	exit 2
 fi
 
 build_dir=$1
 package_root=$2
+architecture=$3
 project_dir=$(CDPATH= cd -- "$(dirname "$0")/.." && pwd)
 header_manifest="$project_dir/packaging/public-headers.txt"
 
@@ -43,9 +44,21 @@ copy_file()
 	fi
 }
 
-lib_dir="$package_root/lib"
+case "$architecture" in
+	x86_64)
+		lib_dir="$package_root/lib"
+		parser_dir="$package_root/add-ons/feed_kit/Parsers"
+		;;
+	x86)
+		lib_dir="$package_root/lib/x86"
+		parser_dir="$package_root/add-ons/x86/feed_kit/Parsers"
+		;;
+	*)
+		echo "Unsupported FeedKit package architecture: $architecture" >&2
+		exit 2
+		;;
+esac
 server_dir="$package_root/servers"
-parser_dir="$package_root/add-ons/feed_kit/Parsers"
 header_dir="$package_root/develop/headers/libfeedkit"
 doc_dir="$package_root/documentation/packages/feedkit"
 

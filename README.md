@@ -204,6 +204,31 @@ Run every Goal 7 client check through the repository-owned aggregate target:
 make goal7-check
 ```
 
+### Release validation
+
+The release entry point starts from clean core and optional-client objects,
+runs the full test and Goal 7 suites, then creates and inspects a package in a
+unique `build/release-*` directory. On x86_64 run:
+
+```sh
+make release-check EXPECTED_ARCH=x86_64
+```
+
+On an x86_gcc2 hybrid installation, enter the modern secondary environment
+first, then run the same check for `x86`:
+
+```sh
+setarch x86
+cd /boot/home/projects/FeedKit
+make release-check EXPECTED_ARCH=x86
+```
+
+The secondary package uses the `feedkit_x86` name, `x86_gcc2` host package
+architecture, and architecture-specific `lib/x86` and `add-ons/x86` paths.
+The check prints the generated HPKG path. Install that package and complete
+the lifecycle/removal checks documented below before recording an architecture
+as release-ready. The command never installs, uninstalls, tags, or publishes.
+
 ### Package layout check
 
 The packaging work uses a staging tree and does not invoke the unsafe legacy
@@ -226,8 +251,9 @@ After the layout check passes, create and inspect a local HPKG with:
 make package
 ```
 
-This writes `build/feedkit-0.1.0-2-<architecture>.hpkg`. It validates the
-embedded package name, version, architecture, server, library, and parser
+This writes `build/feedkit-0.1.0-2-x86_64.hpkg` on x86_64 or an architecture-
+correct `feedkit_x86` package on a modern secondary `x86` shell. It validates
+the embedded package name, version, architecture, server, library, and parser
 paths with Haiku's `package` tool. It does not install, publish, or otherwise
 activate the package.
 
@@ -267,6 +293,8 @@ pkgman uninstall -y feedkit
 make package-removal-check
 ```
 
+Use `pkgman uninstall -y feedkit_x86` for a secondary `x86` package.
+
 The successful check removes only its own marker and state file. It never
 deletes the FeedKit settings directory, preferences, feeds, or enclosures.
 
@@ -300,6 +328,15 @@ cp packaging/haikuports/feedkit-0.1.0.recipe \
     --get-dependencies feedkit
 ```
 
+For the secondary build on an x86_gcc2 hybrid system, enable
+`SECONDARY_TARGET_ARCHITECTURES="x86"` in `haikuports.conf` and request the
+secondary port name:
+
+```sh
+/boot/home/haikuporter/haikuporter -S --no-source-packages \
+    --get-dependencies feedkit_x86
+```
+
 The recipe is pinned to the source commit that passed x86_64 build, test,
 HPKG activation, lifecycle, and removal checks. Strict native HaikuPorter
 validation produces `feedkit`, `feedkit_debuginfo`, and `feedkit_devel`
@@ -324,7 +361,6 @@ On an x86_gcc2 hybrid system building for the modern secondary architecture,
 use `libpcre_x86_devel` and run the build under the `x86` architecture. Use
 `pkgman search libpcre` to see the packages available for the current system.
 
-The default `make` target builds the core restoration scope. Optional clients
-and the Preflet can be attempted separately with `make optional` while their
-ports remain incomplete.
+The default `make` target builds the core restoration scope. The restored
+optional clients and Preflet build separately with `make optional`.
 

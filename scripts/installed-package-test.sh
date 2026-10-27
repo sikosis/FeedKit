@@ -16,7 +16,8 @@ if [ ! -x "$test_binary" ]; then
 fi
 
 installed=false
-for package_file in /boot/system/packages/feedkit-*.hpkg; do
+for package_file in /boot/system/packages/feedkit-*.hpkg \
+	/boot/system/packages/feedkit_x86-*.hpkg; do
 	if [ -f "$package_file" ]; then
 		installed=true
 		break
@@ -29,7 +30,9 @@ fi
 
 for shadow_library in \
 	/boot/system/non-packaged/lib/libfeedkit.so \
-	/boot/home/config/non-packaged/lib/libfeedkit.so
+	/boot/home/config/non-packaged/lib/libfeedkit.so \
+	/boot/system/non-packaged/lib/x86/libfeedkit.so \
+	/boot/home/config/non-packaged/lib/x86/libfeedkit.so
 do
 	if [ -e "$shadow_library" ]; then
 		echo "A non-packaged library would shadow the HPKG: $shadow_library" >&2

@@ -1,4 +1,4 @@
-name          feedkit
+name          @PACKAGE_NAME@
 version       @VERSION@-@REVISION@
 architecture  @ARCHITECTURE@
 summary       "RSS and Atom feed services and library for Haiku"
@@ -10,16 +10,16 @@ licenses      { "MIT" }
 urls          { "https://github.com/sikosis/FeedKit" }
 source-urls   { "https://github.com/sikosis/FeedKit" }
 provides {
-	feedkit = @VERSION@
-	lib:libfeedkit = @VERSION@
+	feedkit@SECONDARY_SUFFIX@ = @VERSION@
+	lib:libfeedkit@SECONDARY_SUFFIX@ = @VERSION@
 }
 requires {
-	haiku
-	lib:libcrypto
-	lib:libcurl
-	lib:libiconv
-	lib:libpcre
-	lib:libstdc++
-	lib:libxml2
-	lib:libz
+	haiku@SECONDARY_SUFFIX@
+	lib:libcrypto@SECONDARY_SUFFIX@
+	lib:libcurl@SECONDARY_SUFFIX@
+	lib:libiconv@SECONDARY_SUFFIX@
+	lib:libpcre@SECONDARY_SUFFIX@
+	lib:libstdc++@SECONDARY_SUFFIX@
+	lib:libxml2@SECONDARY_SUFFIX@
+	lib:libz@SECONDARY_SUFFIX@
 }

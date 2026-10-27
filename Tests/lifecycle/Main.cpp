@@ -5,6 +5,7 @@
 #include <Application.h>
 #include <Entry.h>
 #include <File.h>
+#include <FindDirectory.h>
 #include <Messenger.h>
 #include <Mime.h>
 #include <OS.h>
@@ -45,9 +46,16 @@ WaitForServer(bool running, app_info *info)
 }
 
 static bool
-SelectPackagedServer()
+FindSystemPath(directory_which directory, const char *leaf, BPath *path)
 {
-	const char *path = "/boot/system/servers/feed_server";
+	if (find_directory(directory, path) != B_OK)
+		return false;
+	return path->Append(leaf) == B_OK;
+}
+
+static bool
+SelectPackagedServer(const char *path)
+{
 	entry_ref ref;
 	if (get_ref_for_path(path, &ref) != B_OK) {
 		fprintf(stderr, "FAIL: packaged feed_server is unavailable at %s\n", path);
@@ -102,13 +110,28 @@ class LifecycleApplication : public BApplication {
 
 		void ReadyToRun()
 		{
-			if (!LoadedImageContains(B_CURRENT_TEAM,
-					"/system/lib/libfeedkit.so")) {
-				fprintf(stderr, "FAIL: libfeedkit.so was not loaded from the packaged system library directory\n");
+			BPath libraryPath;
+			BPath serverPath;
+			BPath addOnsPath;
+			if (!FindSystemPath(B_SYSTEM_LIB_DIRECTORY, "libfeedkit.so",
+					&libraryPath)
+				|| !FindSystemPath(B_SYSTEM_SERVERS_DIRECTORY, "feed_server",
+					&serverPath)
+				|| !FindSystemPath(B_SYSTEM_ADDONS_DIRECTORY,
+					"feed_kit/Parsers", &addOnsPath)) {
+				fprintf(stderr, "FAIL: could not resolve architecture-specific system directories\n");
 				PostMessage(B_QUIT_REQUESTED);
 				return;
 			}
-			if (!SelectPackagedServer()) {
+
+			if (!LoadedImageContains(B_CURRENT_TEAM,
+					libraryPath.Path())) {
+				fprintf(stderr, "FAIL: libfeedkit.so was not loaded from %s\n",
+					libraryPath.Path());
+				PostMessage(B_QUIT_REQUESTED);
+				return;
+			}
+			if (!SelectPackagedServer(serverPath.Path())) {
 				PostMessage(B_QUIT_REQUESTED);
 				return;
 			}
@@ -134,11 +157,12 @@ class LifecycleApplication : public BApplication {
 				return;
 			}
 
-			BPath serverPath(&serverInfo.ref);
-			if (serverPath.InitCheck() != B_OK
-				|| strstr(serverPath.Path(), "/system/servers/feed_server") == NULL) {
+			BPath runningServerPath(&serverInfo.ref);
+			if (runningServerPath.InitCheck() != B_OK
+				|| strcmp(runningServerPath.Path(), serverPath.Path()) != 0) {
 				fprintf(stderr, "FAIL: feed_server was not launched from the packaged system server directory: %s\n",
-					serverPath.Path() != NULL ? serverPath.Path() : "<unknown>");
+					runningServerPath.Path() != NULL
+						? runningServerPath.Path() : "<unknown>");
 				StopServer(serverInfo.team);
 				StopListener(listener);
 				PostMessage(B_QUIT_REQUESTED);
@@ -149,10 +173,12 @@ class LifecycleApplication : public BApplication {
 			bool rssLoaded = false;
 			for (int32 attempt = 0; attempt < 100 && (!atomLoaded || !rssLoaded);
 					attempt++) {
-				atomLoaded = LoadedImageContains(serverInfo.team,
-					"/system/add-ons/feed_kit/Parsers/Atom");
-				rssLoaded = LoadedImageContains(serverInfo.team,
-					"/system/add-ons/feed_kit/Parsers/RSS");
+				BPath atomPath(addOnsPath);
+				BPath rssPath(addOnsPath);
+				atomPath.Append("Atom");
+				rssPath.Append("RSS");
+				atomLoaded = LoadedImageContains(serverInfo.team, atomPath.Path());
+				rssLoaded = LoadedImageContains(serverInfo.team, rssPath.Path());
 				if (!atomLoaded || !rssLoaded)
 					snooze(100000);
 			}
