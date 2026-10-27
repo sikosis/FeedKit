@@ -101,6 +101,7 @@ status_t FeedIcon::Archive(BMessage *archive, bool deep = true) const {
 	
 	archive->AddString("add_on", APP_SIG);
 	archive->AddString("add-on", APP_SIG);
+	archive->AddString("class", ICON_NAME);
 	archive->AddString("Class", ICON_NAME);
 	
 	return result;

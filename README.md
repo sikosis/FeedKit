@@ -176,6 +176,14 @@ settings directory and closes the window automatically:
 make preflet-smoke
 ```
 
+Build the in-progress Deskbar slice with `make deskbar`. Its bounded lifecycle
+check constructs, archives, restores, and destroys the Deskbar view without
+installing it into the user's running Deskbar:
+
+```sh
+make deskbar-smoke
+```
+
 ### Package layout check
 
 The packaging work uses a staging tree and does not invoke the unsafe legacy

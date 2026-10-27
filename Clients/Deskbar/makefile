@@ -60,7 +60,7 @@ ORIGIN := $(shell pwd)
 #		naming scheme you need to specify the path to the library
 #		and it's name
 #		library: my_lib.a entry: my_lib.a or path/my_lib.a
-LIBS= be translation z stdc++.r4 feedkit
+LIBS= be translation stdc++ feedkit
 
 #	specify additional paths to directories following the standard
 #	libXXX.so or libXXX.a naming scheme.  You can specify full paths
@@ -68,12 +68,12 @@ LIBS= be translation z stdc++.r4 feedkit
 #	be recursive, so include all of the paths where libraries can
 #	be found.  Directories where source files are found are
 #	automatically included.
-LIBPATHS= /boot/home/config/lib
+LIBPATHS= $(TOPDIR)/build
 
 #	additional paths to look for system headers
 #	thes use the form: #include <header>
 #	source file directories are NOT auto-included here
-SYSTEM_INCLUDE_PATHS = /boot/home/config/include
+SYSTEM_INCLUDE_PATHS = $(TOPDIR)
 
 #	additional paths to look for local headers
 #	thes use the form: #include "header"
@@ -89,7 +89,7 @@ OPTIMIZE= SOME
 #	to use.  For example, setting DEFINES to "DEBUG=1" will cause the
 #	compiler option "-DDEBUG=1" to be used.  Setting DEFINES to "DEBUG"
 #	would pass "-DDEBUG" on the compiler's command line.
-DEFINES=GC_THREADS
+DEFINES=
 
 #	specify special warning levels
 #	if unspecified default warnings will be used
