@@ -420,8 +420,8 @@ resubscribe, persistence, and clean shutdown. The first client slice is
 complete; the remaining optional clients continue independently.
 
 The second slice restores the FeedKit preferences app with repository-local
-linking and an isolated, self-closing launch check. Native build and smoke
-validation are pending.
+linking and an isolated, self-closing launch check. Its native beta6 build and
+smoke validation pass. The preferences slice is complete.
 
 Suggested order:
 

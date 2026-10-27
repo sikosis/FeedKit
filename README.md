@@ -45,7 +45,7 @@ findings, constraints, and acceptance criteria.
 | Core safety and compatibility | Complete — 26 October 2026 | The dependency-free suite passes all 113 checks natively on beta6. It covers stable UUIDs, serialization, download progress, listener safety, parent-owned model trees, deep copy and assignment, replacement-safe unflattening, independent refresh merges, download-request ownership, and complete server teardown. Native smoke and integration runs also pass. |
 | Network and parser modernization | Complete — 26 October 2026 | Native beta6 smoke and integration tests pass, including RSS/Atom registration and refresh, ordered package-aware parser discovery, clean shutdown, missing downloads, malformed-feed isolation, and two-process persistence/restart with stable UUIDs. The 55-check FileRequest suite covers local files and offline loopback HTTP. The 47-check parser suite covers valid, malformed, incomplete, discovered, duplicate-path, ISO-8859-1, and UTF-8 cases. Together with 113 model checks, all 215 focused checks pass. |
 | Package and lifecycle integration | Complete — 27 October 2026 | The staged layout, local and HaikuPorter x86_64 HPKG generation, activation, signature-based on-demand startup, packaged library/server/parser discovery, clean shutdown, removal, and user-data preservation pass natively. HaikuPorter produced runtime, debuginfo, and devel packages. Secondary-architecture coverage remains part of release validation. |
-| Optional client ports | In progress — 27 October 2026 | The first independently validated slice covers the `RegisterFeed` and `FeedSubscriber` command utilities. Both build natively with repository-local headers and libraries. The isolated smoke check passes registration, unsubscribe, resubscribe, persistence, and clean shutdown. It also exposed and now covers synchronized listener-handler removal during active callbacks. |
+| Optional client ports | In progress — 27 October 2026 | The command utilities and FeedKit preferences app are independently restored. `RegisterFeed` and `FeedSubscriber` pass isolated registration, unsubscribe, resubscribe, persistence, and shutdown coverage. `FeedKitSettings` now builds natively and passes an isolated, self-closing launch check. Deskbar, notifications, and Anchorman remain. |
 | Beta6 release validation | Planned | Pass builds, tests, integration checks, and HPKG installation on x86_64 and the modern secondary `x86` architecture. |
 
 ## Goals
@@ -168,9 +168,9 @@ make client-smoke
 The check refuses to run while another `feed_server` is active. It never reads
 or writes the user's normal FeedKit settings or feed store.
 
-Build the next independently restored client, the FeedKit preferences app,
-with `make preferences`. Its launch check uses an empty temporary settings
-directory and closes the window automatically:
+Build the second independently restored client, the FeedKit preferences app,
+with `make preferences`. Its validated launch check uses an empty temporary
+settings directory and closes the window automatically:
 
 ```sh
 make preflet-smoke
