@@ -411,6 +411,12 @@ resident or adding a new boot-time service.
 
 ### Phase 5: port clients independently
 
+Phase 5 is in progress. The first slice restores the `RegisterFeed` and
+`FeedSubscriber` command utilities with repository-local builds, explicit
+server startup, bounded asynchronous completion, and clean listener teardown.
+They remain outside the core build and require native build and smoke
+validation before this slice is complete.
+
 Suggested order:
 
 1. command-line or single-purpose utilities;

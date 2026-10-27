@@ -25,7 +25,7 @@ findings, constraints, and acceptance criteria.
 ![Core safety: complete](https://img.shields.io/badge/4_Core_safety-complete-2ea44f)
 ![Network and parsers: complete](https://img.shields.io/badge/5_Network_%26_parsers-complete-2ea44f)
 ![Packaging: complete](https://img.shields.io/badge/6_Packaging-complete-2ea44f)
-![Clients: planned](https://img.shields.io/badge/7_Clients-planned-8c959f)
+![Clients: in progress](https://img.shields.io/badge/7_Clients-in_progress-d29922)
 ![Release: planned](https://img.shields.io/badge/8_Release-planned-8c959f)
 
 ![Overall progress: 6 of 8 complete](https://img.shields.io/badge/Overall_progress-6_of_8_complete-0969da)
@@ -45,7 +45,7 @@ findings, constraints, and acceptance criteria.
 | Core safety and compatibility | Complete — 26 October 2026 | The dependency-free suite passes all 113 checks natively on beta6. It covers stable UUIDs, serialization, download progress, listener safety, parent-owned model trees, deep copy and assignment, replacement-safe unflattening, independent refresh merges, download-request ownership, and complete server teardown. Native smoke and integration runs also pass. |
 | Network and parser modernization | Complete — 26 October 2026 | Native beta6 smoke and integration tests pass, including RSS/Atom registration and refresh, ordered package-aware parser discovery, clean shutdown, missing downloads, malformed-feed isolation, and two-process persistence/restart with stable UUIDs. The 55-check FileRequest suite covers local files and offline loopback HTTP. The 47-check parser suite covers valid, malformed, incomplete, discovered, duplicate-path, ISO-8859-1, and UTF-8 cases. Together with 113 model checks, all 215 focused checks pass. |
 | Package and lifecycle integration | Complete — 27 October 2026 | The staged layout, local and HaikuPorter x86_64 HPKG generation, activation, signature-based on-demand startup, packaged library/server/parser discovery, clean shutdown, removal, and user-data preservation pass natively. HaikuPorter produced runtime, debuginfo, and devel packages. Secondary-architecture coverage remains part of release validation. |
-| Optional client ports | Planned | Port clients independently after the core is stable; replace obsolete NetPositive and InfoPopper integrations where necessary. |
+| Optional client ports | In progress — 27 October 2026 | The first independently buildable slice covers the `RegisterFeed` and `FeedSubscriber` command utilities. Their builds now use repository-local headers and libraries, and both clients use bounded server startup and operation waits instead of racing asynchronous FeedKit requests. Native build and smoke validation are pending. |
 | Beta6 release validation | Planned | Pass builds, tests, integration checks, and HPKG installation on x86_64 and the modern secondary `x86` architecture. |
 
 ## Goals
@@ -143,6 +143,20 @@ repository-owned in-memory and local fixtures.
 
 Captured server output is written to `build/smoke-test.log` or
 `build/integration-test.log` when a check fails.
+
+### Optional client builds
+
+Goal 7 clients are enabled in independently validated groups. Build the
+currently supported command utilities and their core dependencies with:
+
+```sh
+make clients
+```
+
+This currently produces `build/Clients/RegisterFeed` and
+`build/Clients/FeedSubscriber`. Other historical clients remain excluded from
+this target until their dependencies, lifecycle, and smoke checks have been
+modernized.
 
 ### Package layout check
 

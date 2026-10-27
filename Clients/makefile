@@ -1,19 +1,19 @@
-# makefile for all sample code
+# Optional clients are restored in independently validated groups. Keep the
+# historical clients out of the default client build until each one compiles,
+# launches, and has a bounded smoke test.
 
-SUBDIRS = \
-	Deskbar \
-	EnclosureDownloader \
-	FeedInfoPopper \
+SUPPORTED_SUBDIRS = \
 	RegisterFeed \
-	ItemLogger \
-	ItemReader
+	FeedSubscriber
 
-default .DEFAULT :
-	-@for f in $(SUBDIRS) ; do \
-		$(MAKE) -C $$f -f makefile $@ || exit -1; \
+.PHONY: default clean
+
+default:
+	@for directory in $(SUPPORTED_SUBDIRS); do \
+		$(MAKE) -C $$directory -f makefile default || exit 1; \
 	done
 
 clean:
-	-@for f in $(SUBDIRS) ; do \
-		$(MAKE) -C $$f -f makefile clean || exit -1; \
+	@for directory in $(SUPPORTED_SUBDIRS); do \
+		$(MAKE) -C $$directory -f makefile clean || exit 1; \
 	done
