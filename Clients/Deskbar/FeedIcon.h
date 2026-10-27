@@ -54,7 +54,8 @@ class FeedIcon : public BView, public FeedHandler {
 	
 	private:
 		void				Init(void);
-		BBitmap				*ReadNodeIcon(BString &path, int32 size, bool followLink = true);
+		BBitmap				*ReadNodeIcon(const BString &path, int32 size,
+								bool followLink = true);
 		BMenu				*FeedMenu(void);
 		BMenu				*ChannelMenuItems(Channel *channel);
 		void				Rebuild(void);

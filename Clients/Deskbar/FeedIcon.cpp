@@ -9,6 +9,8 @@
 #include <Menu.h>
 #include <MenuItem.h>
 #include <NodeInfo.h>
+#include <OS.h>
+#include <Path.h>
 #include <Roster.h>
 #include <PopUpMenu.h>
 #include <Window.h>
@@ -67,6 +69,15 @@ const int32 kMenuOptionUnread = 1;
 const int32 kMenuOptionCurrent = 2;
 const int32 kMenuOptionUnreadCurrent = 3;
 
+static void
+DeleteFeeds(feed_list_t &feeds)
+{
+	for (feed_list_t::iterator iterator = feeds.begin();
+		iterator != feeds.end(); iterator++)
+		delete *iterator;
+	feeds.clear();
+}
+
 //#pragma mark Constructor
 
 FeedIcon::FeedIcon(void)
@@ -90,6 +101,7 @@ FeedIcon::~FeedIcon(void) {
 	delete fNewItemsIcon;
 	delete fOfflineIcon;
 	delete fFeedMenu;
+	delete fMenuSpecification;
 	
 	delete fSettingsMan;
 };
@@ -152,15 +164,14 @@ void FeedIcon::MouseDown(BPoint point) {
 		
 		fMenu->SetTargetForItems(this);
 		fMenu->Go(point, true, true, r, true);
-		// XXX
-//		fMenu->SetAsyncAutoDestruct(true);
+		fMenu->SetAsyncAutoDestruct(true);
 	};
 };
 
 void FeedIcon::AttachedToWindow(void) {
 	fFeed = new FeedListener();
-	fFeed->StartListening();
 	fFeed->AddHandler(this);
+	fFeed->StartListening();
 
 	fSettingsMan = new SettingsManager(AppTypes::SettingClient, "Deskbar Icon");
 	fSettingsMan->SetTarget(this);
@@ -201,8 +212,18 @@ void FeedIcon::AttachedToWindow(void) {
 };
 
 void FeedIcon::DetachedFromWindow(void) {
+	if (fFeed == NULL)
+		return;
+
+	thread_id thread = fFeed->Thread();
+	fFeed->RemoveHandler(this);
 	fFeed->StopListening();
 	BMessenger(fFeed).SendMessage(B_QUIT_REQUESTED);
+	if (thread >= B_OK) {
+		status_t result;
+		wait_for_thread(thread, &result);
+	}
+	fFeed = NULL;
 };
 					
 void FeedIcon::MessageReceived(BMessage *msg) {
@@ -320,7 +341,6 @@ void FeedIcon::Init(void) {
 	fFeedMenu = NULL;
 	fDirtyMenu = true;
 
-	entry_ref ref;
 	BPath settingsPath;
 
 	if (find_directory(B_USER_SETTINGS_DIRECTORY, &settingsPath) == B_OK) {
@@ -332,9 +352,25 @@ void FeedIcon::Init(void) {
 
 		fIcon = fOfflineIcon;
 	};
+
+	if (fOfflineIcon == NULL || fNormalIcon == NULL || fNewItemsIcon == NULL) {
+		entry_ref ref;
+		if (be_roster->FindApp(APP_SIG, &ref) == B_OK) {
+			BPath applicationPath(&ref);
+			BString path(applicationPath.Path());
+			if (fOfflineIcon == NULL)
+				fOfflineIcon = ReadNodeIcon(path, kIconSize);
+			if (fNormalIcon == NULL)
+				fNormalIcon = ReadNodeIcon(path, kIconSize);
+			if (fNewItemsIcon == NULL)
+				fNewItemsIcon = ReadNodeIcon(path, kIconSize);
+			fIcon = fOfflineIcon;
+		}
+	}
 };
 
-BBitmap *FeedIcon::ReadNodeIcon(BString &path, int32 size, bool followSymlink) {
+BBitmap *FeedIcon::ReadNodeIcon(const BString &path, int32 size,
+	bool followSymlink) {
 	BBitmap *ret = NULL;
 	entry_ref ref;
 	
@@ -409,6 +445,7 @@ BMenu *FeedIcon::FeedMenu(void) {
 
 			fFeedMenu->AddItem(feedMenu);
 		};
+		DeleteFeeds(feeds);
 				
 		fFeedMenu->SetFont(be_plain_font);
 		fFeedMenu->SetTargetForItems(this);
@@ -473,6 +510,7 @@ bool FeedIcon::HasUnreadItems(void) {
 			unread += items.size();
 		};
 	};	
+	DeleteFeeds(feeds);
 
 	return unread > 0;
 };
@@ -492,7 +530,8 @@ void FeedIcon::HandleSettings(BMessage *settings) {
 		} break;
 		
 		case kMenuOptionUnreadCurrent: {
-			fMenuSpecification = new AndSpecification<Item *>(new UnreadItemSpecification(), new UnreadItemSpecification());
+			fMenuSpecification = new AndSpecification<Item *>(
+				new UnreadItemSpecification(), new CurrentItemSpecification());
 		} break;
 
 		case kMenuOptionAll:
