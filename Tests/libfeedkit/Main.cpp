@@ -10,6 +10,7 @@
 #include <libfeedkit/Private/Constants.h>
 
 #include <Roster.h>
+#include <OS.h>
 #include <stdio.h>
 #include <string.h>
 #include <time.h>
@@ -68,6 +69,56 @@ class CountingHandler : public FeedHandler {
 		int32 fItemRead;
 		int32 fEnclosureStarted;
 };
+
+class BlockingHandler : public FeedHandler {
+	public:
+		BlockingHandler()
+			: fEntered(create_sem(0, "FeedListener handler entered")),
+			fContinue(create_sem(0, "FeedListener handler continue"))
+		{
+		}
+
+		~BlockingHandler()
+		{
+			delete_sem(fEntered);
+			delete_sem(fContinue);
+		}
+
+		void ServerStarted()
+		{
+			release_sem(fEntered);
+			acquire_sem(fContinue);
+		}
+
+		status_t WaitUntilEntered()
+		{
+			return acquire_sem_etc(fEntered, 1, B_RELATIVE_TIMEOUT, 2000000);
+		}
+
+		void Continue()
+		{
+			release_sem(fContinue);
+		}
+
+	private:
+		sem_id fEntered;
+		sem_id fContinue;
+};
+
+struct RemoveHandlerContext {
+	FeedListener *listener;
+	FeedHandler *handler;
+	sem_id done;
+};
+
+static int32
+RemoveHandlerThread(void *data)
+{
+	RemoveHandlerContext *context = (RemoveHandlerContext *)data;
+	context->listener->RemoveHandler(context->handler);
+	release_sem(context->done);
+	return B_OK;
+}
 
 static void
 Check(bool condition, const char *description)
@@ -569,6 +620,40 @@ TestFeedListenerSafety()
 		"FeedListener accepted a null enclosure item");
 	Check(listener->CancelEnclosureDownload(item, NULL) == B_BAD_VALUE,
 		"FeedListener accepted a null enclosure cancellation");
+
+	BlockingHandler blocking;
+	listener->AddHandler(&blocking);
+	BMessage asynchronousLaunch(B_SOME_APP_LAUNCHED);
+	asynchronousLaunch.AddString("be:signature", FeedKit::ServerSignature);
+	BMessenger(listener).SendMessage(&asynchronousLaunch);
+	status_t entered = blocking.WaitUntilEntered();
+	Check(entered == B_OK,
+		"FeedListener did not dispatch the blocking handler");
+	if (entered == B_OK) {
+		RemoveHandlerContext context;
+		context.listener = listener;
+		context.handler = &blocking;
+		context.done = create_sem(0, "FeedListener handler removed");
+		thread_id remover = spawn_thread(RemoveHandlerThread,
+			"FeedListener handler remover", B_NORMAL_PRIORITY, &context);
+		resume_thread(remover);
+		snooze(100000);
+		int32 doneCount = -1;
+		get_sem_count(context.done, &doneCount);
+		Check(doneCount == 0,
+			"FeedListener removed a handler while its callback was active");
+		blocking.Continue();
+		status_t removeResult;
+		wait_for_thread(remover, &removeResult);
+		get_sem_count(context.done, &doneCount);
+		Check(doneCount == 1 && removeResult == B_OK,
+			"FeedListener did not finish synchronized handler removal");
+		delete_sem(context.done);
+	} else {
+		// Avoid leaving a late callback blocked if the timing assertion failed.
+		blocking.Continue();
+		listener->RemoveHandler(&blocking);
+	}
 
 	listener->RemoveHandler(&registered);
 	BMessenger(listener).SendMessage(B_QUIT_REQUESTED);

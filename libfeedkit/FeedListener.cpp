@@ -14,6 +14,7 @@
 #include <FindDirectory.h>
 #include <List.h>
 #include <NodeMonitor.h>
+#include <OS.h>
 #include <Path.h>
 #include <Roster.h>
 
@@ -509,15 +510,29 @@ status_t FeedListener::CancelEnclosureDownload(Item *item, Enclosure *enclosure)
 //#pragma mark Handler Subscription
 
 void FeedListener::AddHandler(FeedHandler *handler) {
+	bool locked = find_thread(NULL) != Thread();
+	if (locked && !Lock())
+		return;
+
 	if (handler != NULL
 		&& std::find(fHandler.begin(), fHandler.end(), handler) == fHandler.end())
 		fHandler.push_back(handler);
+
+	if (locked)
+		Unlock();
 };
 
 void FeedListener::RemoveHandler(FeedHandler *handler) {
+	bool locked = find_thread(NULL) != Thread();
+	if (locked && !Lock())
+		return;
+
 	handler_t::iterator found = std::find(fHandler.begin(), fHandler.end(), handler);
 	if (found != fHandler.end())
 		fHandler.erase(found);
+
+	if (locked)
+		Unlock();
 };
 
 //#pragma mark Private
