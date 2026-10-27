@@ -144,12 +144,13 @@ void PrintFeed(Feed *feed) {
 
 FeedServer::FeedServer(bool smokeTest, const char *integrationRSSURL,
 	const char *integrationAtomURL, const char *integrationFailureURL,
-	const char *integrationParseFailureURL)
+	const char *integrationParseFailureURL, const char *clientTestStore)
 	: BApplication(smokeTest ? "application/x-vnd.beclan.feed_server.smoke"
 		: integrationRSSURL != NULL
 			? "application/x-vnd.beclan.feed_server.integration" : ServerSignature),
 	 fSmokeTest(smokeTest),
 	 fIntegrationTest(integrationRSSURL != NULL && integrationAtomURL != NULL),
+	 fClientTest(clientTestStore != NULL && clientTestStore[0] != '\0'),
 	 fIntegrationTestFailed(false),
 	 fIntegrationTestComplete(false),
 	 fCurlInitialized(false),
@@ -175,7 +176,9 @@ FeedServer::FeedServer(bool smokeTest, const char *integrationRSSURL,
 	 fDownloadStatusRunner(NULL),
 	 fFlattenFeedRunner(NULL),
 	 fVolRoster(NULL) {
-	if (fIntegrationPersistence)
+	if (fClientTest)
+		fSettingsPath.SetTo(clientTestStore);
+	else if (fIntegrationPersistence)
 		fSettingsPath.SetTo(getenv("FEEDKIT_INTEGRATION_STORE"));
 
 	AddCommonFilter(new ObjectUpdateFilter(this));
@@ -218,7 +221,7 @@ FeedServer::FeedServer(bool smokeTest, const char *integrationRSSURL,
 	fChannelUUID.clear();
 	fItemUUID.clear();
 
-	if (fIntegrationTest) {
+	if (fIntegrationTest || fClientTest) {
 		fRefresh = kDefaultRefresh;
 	} else {
 		fSettings = new SettingsFile(kSettingsFile, kSettingsDir);
@@ -341,7 +344,16 @@ void FeedServer::ReadyToRun(void) {
 		return;
 	}
 
-	if (find_directory(B_USER_SETTINGS_DIRECTORY, &fSettingsPath) == B_OK) {
+	if (fClientTest) {
+		status_t result = create_directory(fSettingsPath.Path(), 0755);
+		if (result != B_OK && result != B_FILE_EXISTS) {
+			fprintf(stderr,
+				"FeedServer client test: unable to prepare isolated store: %s\n",
+				strerror(result));
+			PostMessage(B_QUIT_REQUESTED);
+			return;
+		}
+	} else if (find_directory(B_USER_SETTINGS_DIRECTORY, &fSettingsPath) == B_OK) {
 		BPath watchPath(fSettingsPath);
 		watchPath.Append("BeClan/FeedKit");
 
@@ -363,7 +375,8 @@ void FeedServer::ReadyToRun(void) {
 		fprintf(stderr, "FeedServer::ReadyToRun(): Unable to find settings path\n");
 	};
 
-	CheckIndexes();
+	if (!fClientTest)
+		CheckIndexes();
 	if (fSmokeTest)
 		fprintf(stderr, "FeedServer smoke test: indexes checked\n");
 
@@ -373,23 +386,20 @@ void FeedServer::ReadyToRun(void) {
 	if (fSmokeTest)
 		fprintf(stderr, "FeedServer smoke test: download runner ready\n");
 
-	fVolRoster = new BVolumeRoster();
-	fVolRoster->StartWatching(BMessenger(this));
-
 	volume_t volumes;
-	BVolume	vol;
-	
-	fVolRoster->Rewind();
-	
-	while (fVolRoster->GetNextVolume(&vol) == B_OK) {
-		if ((vol.InitCheck() != B_OK) || (vol.KnowsQuery() == false) ||
-			(vol.KnowsMime() == false) || (vol.KnowsAttr() == false)) {
+	if (!fClientTest) {
+		fVolRoster = new BVolumeRoster();
+		fVolRoster->StartWatching(BMessenger(this));
 
-			continue;
-		};
-		
-		volumes.push_back(vol);
-	};
+		BVolume vol;
+		fVolRoster->Rewind();
+		while (fVolRoster->GetNextVolume(&vol) == B_OK) {
+			if (vol.InitCheck() != B_OK || !vol.KnowsQuery()
+				|| !vol.KnowsMime() || !vol.KnowsAttr())
+				continue;
+			volumes.push_back(vol);
+		}
+	}
 
 	BMessage channelQueryMessage(kMsgQueryChannel);
 	fFeedQuery = new QueryLooper(kPredicateChannel, volumes, "Feed Query", this,
@@ -433,7 +443,8 @@ void FeedServer::ReadyToRun(void) {
 		fChannelIcon[ref.name] = path.Path();
 	};
 
-	StartAutoStartClients();
+	if (!fClientTest)
+		StartAutoStartClients();
 
 	if (fSmokeTest) {
 		fprintf(stderr, "FeedServer smoke test: ReadyToRun complete\n");
@@ -447,7 +458,7 @@ bool FeedServer::QuitRequested(void) {
 	if (fSmokeTest)
 		fprintf(stderr, "FeedServer smoke test: clean shutdown requested\n");
 
-	if (!fIntegrationTest)
+	if (!fIntegrationTest && !fClientTest)
 		StopAutoStartClients();
 
 	ShutdownServices();

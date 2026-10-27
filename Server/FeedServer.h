@@ -51,7 +51,8 @@ class FeedServer : public BApplication, public ObjectSource {
 										const char *integrationRSSURL = NULL,
 										const char *integrationAtomURL = NULL,
 										const char *integrationFailureURL = NULL,
-										const char *integrationParseFailureURL = NULL);
+										const char *integrationParseFailureURL = NULL,
+										const char *clientTestStore = NULL);
 									~FeedServer(void);
 
 		// BApplication Hooks					
@@ -74,6 +75,7 @@ class FeedServer : public BApplication, public ObjectSource {
 	private:
 			bool						fSmokeTest;
 			bool						fIntegrationTest;
+			bool						fClientTest;
 			bool						fIntegrationTestFailed;
 			bool						fIntegrationTestComplete;
 			bool						fCurlInitialized;

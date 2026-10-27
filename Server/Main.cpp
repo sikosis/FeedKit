@@ -91,8 +91,9 @@ int main(int argc, char **argv) {
 	bool smokeTest = argc == 2 && strcmp(argv[1], "--smoke-test") == 0;
 	bool integrationTest = (argc >= 4 && argc <= 6)
 		&& strcmp(argv[1], "--integration-test") == 0;
-	if (argc > 1 && !smokeTest && !integrationTest) {
-		fprintf(stderr, "Usage: %s [--smoke-test | --integration-test RSS_URL ATOM_URL [DOWNLOAD_FAILURE_URL [PARSE_FAILURE_URL]]]\n",
+	bool clientTest = argc == 3 && strcmp(argv[1], "--client-test") == 0;
+	if (argc > 1 && !smokeTest && !integrationTest && !clientTest) {
+		fprintf(stderr, "Usage: %s [--smoke-test | --client-test STORE | --integration-test RSS_URL ATOM_URL [DOWNLOAD_FAILURE_URL [PARSE_FAILURE_URL]]]\n",
 			argv[0]);
 		return 1;
 	}
@@ -100,7 +101,8 @@ int main(int argc, char **argv) {
 	FeedServer server(smokeTest, integrationTest ? argv[2] : NULL,
 		integrationTest ? argv[3] : NULL,
 		integrationTest && argc >= 5 ? argv[4] : NULL,
-		integrationTest && argc == 6 ? argv[5] : NULL);
+		integrationTest && argc == 6 ? argv[5] : NULL,
+		clientTest ? argv[2] : NULL);
 	status_t status = server.InitCheck();
 	if (status != B_OK) {
 		fprintf(stderr, "feed_server initialization failed: %s\n",
