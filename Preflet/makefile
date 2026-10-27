@@ -66,7 +66,7 @@ ORIGIN := $(shell pwd)
 #		naming scheme you need to specify the path to the library
 #		and it's name
 #		library: my_lib.a entry: my_lib.a or path/my_lib.a
-LIBS= be translation stdc++.r4 textencoding feedkit
+LIBS= be translation stdc++ textencoding feedkit
 
 # Zeta needs find_directory_r() which is in libzeta, do a check
 ifeq ($(wildcard /boot/beos/system/lib/libzeta.so), )
@@ -82,12 +82,12 @@ endif
 #	be recursive, so include all of the paths where libraries can
 #	be found.  Directories where source files are found are
 #	automatically included.
-LIBPATHS= /boot/home/config/lib
+LIBPATHS= $(TOPDIR)/build
 
 #	additional paths to look for system headers
 #	thes use the form: #include <header>
 #	source file directories are NOT auto-included here
-SYSTEM_INCLUDE_PATHS =
+SYSTEM_INCLUDE_PATHS = $(TOPDIR)
 
 #	additional paths to look for local headers
 #	thes use the form: #include "header"
@@ -157,6 +157,6 @@ ifeq ($(DEBUG_BUILD), true)
 
 endif
 
-INSTALL_DIR=/boot/home/config/be/Preferences
+INSTALL_DIR=$(TOPDIR)/build
 
 include $(TOPDIR)/makefile-engine.FeedKit

@@ -1,18 +1,14 @@
 #ifndef PAPPLICATION_H
 #define PAPPLICATION_H
 
-#include "main.h"
-
 #include <Application.h>
-#include <Window.h>
 
 class PWindow;
-class BApplication;
 
 class PApplication : public BApplication {
 	public:
 	
-							PApplication(void);
+							PApplication(bool smokeTest = false);
 							~PApplication(void);
 		
 		// BApplication Hooks				
@@ -22,6 +18,7 @@ class PApplication : public BApplication {
 				
 	private:
 		PWindow				*fWindow;
+		bool				fSmokeTest;
 };
 
 #endif

@@ -419,6 +419,10 @@ isolated end-to-end client smoke check passes registration, unsubscribe,
 resubscribe, persistence, and clean shutdown. The first client slice is
 complete; the remaining optional clients continue independently.
 
+The second slice restores the FeedKit preferences app with repository-local
+linking and an isolated, self-closing launch check. Native build and smoke
+validation are pending.
+
 Suggested order:
 
 1. command-line or single-purpose utilities;

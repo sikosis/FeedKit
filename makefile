@@ -27,7 +27,7 @@ SUBDIRS = $(CORE_SUBDIRS) Tests
 
 FEEDKIT_HEADERS=$(addprefix /boot/home/config/include/, $(wildcard libfeedkit/*.h))
 
-.PHONY: default clean test unit smoke integration clients client-smoke optional package-stage package-check package installed-package-check package-removal-prepare package-removal-check install dist common
+.PHONY: default clean test unit smoke integration clients client-smoke preferences preflet-smoke optional package-stage package-check package installed-package-check package-removal-prepare package-removal-check install dist common
 
 default:
 	$(MAKE) -C libfeedkit -f makefile $@ || exit 1;
@@ -46,6 +46,12 @@ clients: default
 
 client-smoke: clients
 	./scripts/client-smoke-test.sh
+
+preferences: default
+	$(MAKE) -C Preflet -f makefile default
+
+preflet-smoke: preferences
+	./scripts/preflet-smoke-test.sh
 
 smoke: default
 	./scripts/smoke-test.sh

@@ -1,9 +1,12 @@
 #include "PApplication.h"
+#include "PWindow.h"
 
 //#pragma mark Constructor
 
-PApplication::PApplication(void)
-	: BApplication("application/x-vnd.beclan-FeedKit-Prefs") {
+PApplication::PApplication(bool smokeTest)
+	: BApplication("application/x-vnd.beclan-FeedKit-Prefs"),
+	fWindow(NULL),
+	fSmokeTest(smokeTest) {
 };
 
 PApplication::~PApplication(void) {
@@ -13,6 +16,8 @@ PApplication::~PApplication(void) {
 
 void PApplication::ReadyToRun(void) {
 	fWindow = new PWindow();
+	if (fSmokeTest)
+		fWindow->PostMessage(B_QUIT_REQUESTED);
 };
 
 bool PApplication::QuitRequested(void) {

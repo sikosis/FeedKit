@@ -19,6 +19,7 @@
 #include <TextView.h>
 #include <View.h>
 
+#include <stdlib.h>
 
 #ifdef ZETA
 #include <locale/Locale.h>
@@ -77,7 +78,8 @@ PWindow::PWindow(void)
 	 fBox(NULL),
 	 fCurrentView(NULL) {
 
-	fHelper = new BubbleHelper();
+	fHelper = getenv("FEEDKIT_PREFLET_TEST_SETTINGS") == NULL
+		? new BubbleHelper() : NULL;
 	
 	BRect frame = Bounds();
 
@@ -165,10 +167,15 @@ PWindow::PWindow(void)
 	
 	float maxHeight = 0;
 	
+	const char *testSettings = getenv("FEEDKIT_PREFLET_TEST_SETTINGS");
 	BPath settingsPath;
-	if (find_directory(B_USER_SETTINGS_DIRECTORY, &settingsPath) == B_OK) {
+	status_t settingsStatus = testSettings != NULL
+		? settingsPath.SetTo(testSettings)
+		: find_directory(B_USER_SETTINGS_DIRECTORY, &settingsPath);
+	if (settingsStatus == B_OK) {
 		fSettingPath = settingsPath;
-		fSettingPath.Append("BeClan/FeedKit/");
+		if (testSettings == NULL)
+			fSettingPath.Append("BeClan/FeedKit/");
 		
 		BDirectory rootDir(fSettingPath.Path());
 		entry_ref ref;
@@ -191,7 +198,7 @@ PWindow::PWindow(void)
 			maxHeight = max_c(maxH, maxHeight);
 		};
 	} else {
-		fprintf(stderr, "PWindow(): Unable to determine settings dir");
+		fprintf(stderr, "PWindow(): Unable to determine settings directory\n");
 	};
 	
 	fListView->Select(0);
@@ -211,11 +218,15 @@ PWindow::PWindow(void)
 };
 
 PWindow::~PWindow(void) {
+	delete fHelper;
 };
 
 //#pragma mark BWindow Hooks
 
 bool PWindow::QuitRequested(void) {
+	delete fHelper;
+	fHelper = NULL;
+
 	pref_t::iterator pIt;
 	for (pIt = fPrefView.begin(); pIt != fPrefView.end(); pIt++) delete pIt->second;
 

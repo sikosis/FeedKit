@@ -1,8 +1,6 @@
 #ifndef PWINDOW_H
 #define PWINDOW_H
 
-#include "main.h"
-
 #include <Path.h>
 #include <String.h>
 #include <Window.h>

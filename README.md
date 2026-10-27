@@ -168,6 +168,14 @@ make client-smoke
 The check refuses to run while another `feed_server` is active. It never reads
 or writes the user's normal FeedKit settings or feed store.
 
+Build the next independently restored client, the FeedKit preferences app,
+with `make preferences`. Its launch check uses an empty temporary settings
+directory and closes the window automatically:
+
+```sh
+make preflet-smoke
+```
+
 ### Package layout check
 
 The packaging work uses a staging tree and does not invoke the unsafe legacy
