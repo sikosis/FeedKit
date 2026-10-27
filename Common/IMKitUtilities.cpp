@@ -89,7 +89,7 @@ BBitmap *GetBitmapFromAttribute(const char *name, const char *attribute,
 	char *data = (char *)calloc((size_t)info.size, sizeof(char));
 	len = (size_t)info.size;
 		
-	if (node.ReadAttr(attribute, type, 0, data, len) != (size_t)len) {
+	if (node.ReadAttr(attribute, type, 0, data, len) != (ssize_t)len) {
 		node.Unset();
 		free(data);
 	
@@ -124,8 +124,8 @@ char *ReadAttribute(BNode node, const char *attribute, int32 *length) {
 
 	if (node.GetAttrInfo(attribute, &info) == B_OK) {
 		value = (char *)calloc((size_t)info.size, sizeof(char));
-		if (node.ReadAttr(attribute, info.type, 0, (void *)value, (size_t)info.size) !=
-			(size_t)info.size) {
+		if (node.ReadAttr(attribute, info.type, 0, (void *)value,
+			(size_t)info.size) != (ssize_t)info.size) {
 			
 			free(value);
 			value = NULL;

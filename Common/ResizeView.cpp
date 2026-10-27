@@ -68,8 +68,8 @@ const int kResizeWidgetCircleCount = 2;
 
 
 //http://dev.osdrawer.net/plugins/scmsvn/viewcvs.php/src/general/SplitterView/Divider.cpp?root=libwalter&rev=76&view=markup
-static const int8 kCursorResizeHorizontal[68] = { 16,1,8,10,0,0,1,128,3,192,7,224,0,0,0,0,0,0,255,255,255,255,0,0,0,0,0,0,7,224,3,192,1,128,0,0,0,0,1,128,3,192,7,224,0,0,0,0,0,0,255,255,255,255,0,0,0,0,0,0,7,224,3,192,1,128,0,0 };
-static const int8 kCursorResizeVertical[68] = { 16,1,10,8,1,128,1,128,1,128,1,128,1,128,17,136,49,140,113,142,113,142,49,140,17,136,1,128,1,128,1,128,1,128,1,128,1,128,1,128,1,128,1,128,1,128,17,136,49,140,113,142,113,142,49,140,17,136,1,128,1,128,1,128,1,128,1,128 };
+static const uint8 kCursorResizeHorizontal[68] = { 16,1,8,10,0,0,1,128,3,192,7,224,0,0,0,0,0,0,255,255,255,255,0,0,0,0,0,0,7,224,3,192,1,128,0,0,0,0,1,128,3,192,7,224,0,0,0,0,0,0,255,255,255,255,0,0,0,0,0,0,7,224,3,192,1,128,0,0 };
+static const uint8 kCursorResizeVertical[68] = { 16,1,10,8,1,128,1,128,1,128,1,128,1,128,17,136,49,140,113,142,113,142,49,140,17,136,1,128,1,128,1,128,1,128,1,128,1,128,1,128,1,128,1,128,1,128,17,136,49,140,113,142,113,142,49,140,17,136,1,128,1,128,1,128,1,128,1,128 };
 
 
 //#pragma mark Constructor
@@ -366,17 +366,11 @@ BRect ResizeView::ResizeRect(void) {
 		rect.left = fView1->Frame().right;
 		rect.right = fView2->Frame().left;
 
-		float widgetHeight = rect.Height() * kResizeWidgetRatio;
-		float height = rect.Height();
-		
 		rect.InsetBy(kResizeWidgetPadding, kResizeWidgetPadding);
 	} else {
 		rect.top = fView1->Frame().bottom;
 		rect.bottom = fView2->Frame().top;
 
-		float widgetWidth = rect.Width() * 0.05f;
-		float width = rect.Width();
-			
 		rect.InsetBy(kResizeWidgetPadding, kResizeWidgetPadding);
 	};
 	
