@@ -408,19 +408,32 @@ void FeedServer::ReadyToRun(void) {
 	fEnclosureQuery = new QueryLooper(kPredicateEnclosure, volumes, "Enclosure Query", this,
 		&enclosureQueryMessage);
 
-	// Create the flattened feed directory
-	BDirectory dir(fSettingsPath.Path());
-	dir.CreateDirectory("BeClan/FeedKit/Feed", NULL);
-	dir.CreateDirectory("BeClan/FeedKit/Feed/Data", NULL);
-	dir.CreateDirectory("BeClan/FeedKit/Feed/Data/ChannelIcons", NULL);
-
+	// Create the flattened feed directory. BDirectory::CreateDirectory() does
+	// not create missing parent components, which matters for isolated stores.
 	BPath path(fSettingsPath);
-	path.Append("BeClan");
-	path.Append("FeedKit");
-	path.Append("Feed");
-	path.Append("Data");
+	status_t storageStatus = path.Append("BeClan");
+	if (storageStatus == B_OK)
+		storageStatus = path.Append("FeedKit");
+	if (storageStatus == B_OK)
+		storageStatus = path.Append("Feed");
+	if (storageStatus == B_OK)
+		storageStatus = path.Append("Data");
+	if (storageStatus == B_OK)
+		storageStatus = create_directory(path.Path(), 0755);
+	if (storageStatus != B_OK && storageStatus != B_FILE_EXISTS) {
+		fprintf(stderr, "FeedServer::ReadyToRun(): Unable to prepare feed storage: %s\n",
+			strerror(storageStatus));
+		PostMessage(B_QUIT_REQUESTED);
+		return;
+	}
 
-	dir.SetTo(path.Path());
+	BDirectory dir(path.Path());
+	if (dir.InitCheck() != B_OK) {
+		fprintf(stderr, "FeedServer::ReadyToRun(): Feed storage is unavailable: %s\n",
+			strerror(dir.InitCheck()));
+		PostMessage(B_QUIT_REQUESTED);
+		return;
+	}
 		
 	// Iterate over the feeds
 	entry_ref ref;
@@ -433,7 +446,15 @@ void FeedServer::ReadyToRun(void) {
 	};
 
 	// Load previously saved icons
-	path.Append("ChannelIcons");
+	storageStatus = path.Append("ChannelIcons");
+	if (storageStatus == B_OK)
+		storageStatus = create_directory(path.Path(), 0755);
+	if (storageStatus != B_OK && storageStatus != B_FILE_EXISTS) {
+		fprintf(stderr, "FeedServer::ReadyToRun(): Unable to prepare channel icon storage: %s\n",
+			strerror(storageStatus));
+		PostMessage(B_QUIT_REQUESTED);
+		return;
+	}
 	dir.SetTo(path.Path());
 		
 	// Iterate over channel icons
@@ -445,6 +466,8 @@ void FeedServer::ReadyToRun(void) {
 
 	if (!fClientTest)
 		StartAutoStartClients();
+	else
+		fprintf(stderr, "FeedServer client test: isolated store ready\n");
 
 	if (fSmokeTest) {
 		fprintf(stderr, "FeedServer smoke test: ReadyToRun complete\n");

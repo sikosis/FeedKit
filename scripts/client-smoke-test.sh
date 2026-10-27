@@ -89,6 +89,8 @@ server_pid=
 
 grep -F 'Registered feed: FeedKit client smoke fixture' "$register_log" \
 	>/dev/null 2>&1 || fail "RegisterFeed did not report completion"
+grep -F 'FeedServer client test: isolated store ready' "$log" \
+	>/dev/null 2>&1 || fail "feed_server did not prepare the isolated store"
 grep -F "Feed is unsubscribed: $url" "$subscriber_log" \
 	>/dev/null 2>&1 || fail "unsubscribe completion was not reported"
 grep -F "Feed is subscribed: $url" "$subscriber_log" \
